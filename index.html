@@ -2235,6 +2235,7 @@ const G = {
       if (k === 'r') this.desktopReload();
       else if (k === 'v') this.dropGunMag();
       else if (k === 'b') this.boltButton();
+      else if (k === 'n') this.toggleBUIS();
       else if (k === 'x') this.cycleSelector();
       else if (k === 'q') this.swapWeapon();
       else if (k === '1' && this.P.weapon !== 'rifle') this.swapWeapon();
@@ -4338,6 +4339,26 @@ const _v6w = new THREE.Vector3(), _v6h = new THREE.Vector3(), _v6f = new THREE.V
   });
   const _t8 = G.tick; G.tick = function (dt, t) { _t8.call(this, dt, t); if (this.rifle && this.rifle.glb && !this.rifle.selDeco && this.P) this.decorateSelector(this.rifle); if (window.__milsimTest && !window.__milsimTest.SFX) window.__milsimTest.SFX = SFX; };
 }
+/* massa de mira dianteira: levantar/rebater (tecla N no desktop; em VR, gatilho da mão de apoio encostada na massa) */
+{
+  const _bP = new THREE.Vector3();
+  Object.assign(G, {
+    toggleBUIS() {
+      const W = this.rifle; if (!W.setBUIS) return false;
+      W.setBUIS(!W.buisUp); SFX.click(); this.haptic('sup', 0.3, 12);
+      this.msg(W.buisUp ? 'Massa de mira levantada (miras de reserva)' : 'Massa de mira rebatida', 1);
+      return W.buisUp;
+    },
+    updateBUISTouch(vr) {
+      const W = this.rifle; if (!vr || !W.frontPost || this.P.weapon !== 'rifle' || this.P.supHeld) return;
+      const sh = this.supHand(); if (!sh.valid) return;
+      W.frontPost.getWorldPosition(_bP);
+      this.buisNear = sh.pos.distanceTo(_bP) < 0.05;
+      if (this.buisNear && sh.trigger && !sh.triggerP) this.toggleBUIS();
+    }
+  });
+  const _t9 = G.tick; G.tick = function (dt, t) { _t9.call(this, dt, t); if (this.P && this.started) this.updateBUISTouch(this.renderer.xr.isPresenting); };
+}
 })();
 </script>
 </head>
@@ -4374,7 +4395,7 @@ const _v6w = new THREE.Vector3(), _v6h = new THREE.Vector3(), _v6f = new THREE.V
           <b>Navegador (teste)</b><br>
           WASD andar • Shift correr • Mouse olhar<br>
           Clique esq.: atirar • Clique dir.: mirar<br>
-          R recarregar • V soltar pente • B ferrolho<br>
+          R recarregar • V soltar pente • B ferrolho • N massa de mira<br>
           Tab/1/2 trocar arma • G granada • H seringa • F laser<br>
           C agachar • Z deitar • Q/E inclinar<br>
           Esc: pausar
@@ -4387,7 +4408,7 @@ const _v6w = new THREE.Vector3(), _v6h = new THREE.Vector3(), _v6f = new THREE.V
     <div id="hudAmmo"></div>
     <div id="hudMsg"></div>
     <div id="cross"></div>
-    <div id="hudHelp">Clique esq. atirar • dir. mirar • R recarregar • X seletor • C agachar • Z deitar • Q/E inclinar • G granada • H seringa • Tab trocar arma • Esc pausar</div>
+    <div id="hudHelp">Clique esq. atirar • dir. mirar • R recarregar • X seletor • N massa de mira • C agachar • Z deitar • Q/E inclinar • G granada • H seringa • Tab trocar arma • Esc pausar</div>
   </div>
 
   <a-scene milsim-game
