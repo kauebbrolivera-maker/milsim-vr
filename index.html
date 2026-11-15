@@ -1037,6 +1037,11 @@ function applyRifleGLB(W, gltf) {
   const grip = collectVerts(base || model, W.group).filter(v => v.y < -0.06 && v.y > -0.13 && v.z > 0.04);
   const gc = grip.length > 20 ? avgOf(grip) : new THREE.Vector3(0, -0.095, 0.075);
   wrap.position.set(-gc.x, -0.03 - gc.y, 0.035 - gc.z); W.group.updateMatrixWorld(true);
+  // massa de mira dianteira faz parte da malha 'Barrel': com o holográfico montado ela fica rebatida (vértices achatados ao nível do trilho)
+  { const bn = model.getObjectByName('Barrel'), bm = bn && (bn.isMesh ? bn : meshIn(bn));
+    if (bm) { bm.geometry = bm.geometry.clone(); const pa = bm.geometry.attributes.position, m = relMatrix(bm, W.group), mi = m.clone().invert(), v = new THREE.Vector3(); let n = 0;
+      for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(m); if (v.z > -0.445 && v.z < -0.375 && v.y > 0.119) { v.y = 0.119; v.applyMatrix4(mi); pa.setXYZ(i, v.x, v.y, v.z); n++; } }
+      pa.needsUpdate = true; bm.geometry.computeBoundingSphere(); W.postFlat = n; } }
   // carregador do modelo vira o molde de todos os pentes do fuzil
   const magNode = findNode(model, /^Magazine/i), magMesh = meshIn(magNode);
   if (magMesh) {
@@ -2105,7 +2110,8 @@ const G = {
     if (this.mode === 'vr') { // VR: dica curta (0,8–1,2 s) e só uma vez por texto a cada 20 s
       this.msgSeen = this.msgSeen || {}; const now = performance.now();
       if (this.msgSeen[text] && now - this.msgSeen[text] < 20000) return; this.msgSeen[text] = now;
-      secs = clamp(secs || 1, 0.8, 1.2);
+      // procedimentos (panes, instruções) 2,5–3 s; avisos curtos 0,8–1,2 s
+      secs = (secs || 1) >= 1.5 ? clamp(secs, 2.5, 3) : clamp(secs || 1, 0.8, 1.2);
     }
     this.msgT = secs || 2.5;
     const p = this.msgPanel, c = p.ctx; c.clearRect(0, 0, 512, 128);
@@ -3338,7 +3344,7 @@ Object.assign(G, {
       sleeve.geometry.translate(0, 0.155, 0); sleeve.quaternion.copy(qArm);
       h.root.updateMatrixWorld(true); const ws = new THREE.Vector3(); wb.getWorldScale(ws); const inv = h.root.scale.x / Math.max(1e-4, ws.x);
       [cuff, sleeve].forEach(m => { m.castShadow = true; m.material.side = THREE.DoubleSide; m.scale.setScalar(inv); m.position.multiplyScalar(inv); wb.add(m); });
-      h.sleeve = sleeve; h.wb = wb; sleeve.geometry.translate(0, -0.155, 0); sleeve.geometry.translate(0, 0.07, 0);
+      h.sleeve = sleeve; h.cuff = cuff; h.wb = wb; sleeve.geometry.translate(0, -0.155, 0); sleeve.geometry.translate(0, 0.07, 0);
     }
     h.root.visible = false; h.sp = new THREE.Vector3(); h.sq = new THREE.Quaternion(); h.inited = false;
     this.scene.add(h.root); this.hands[side] = h;
@@ -4051,12 +4057,18 @@ Object.assign(G, {
     if (this.holoDot) this.holoDot.visible = false;
     if (!this.holoRet) {
       const cv = makeCanvas(256), x = cv.getContext('2d');
-      x.shadowColor = 'rgba(255,40,30,0.9)'; x.shadowBlur = 4;
-      x.strokeStyle = 'rgba(255,45,30,1)'; x.lineWidth = 12; // traço ~3,5 MOA: no Quest 3S (~20 px/grau) um traço de 1 MOA ficaria com 1/3 de pixel
-      x.beginPath(); x.arc(128, 128, 110, 0, Math.PI * 2); x.stroke(); // anel de 68 MOA
-      x.fillStyle = 'rgba(255,80,60,1)'; x.beginPath(); x.arc(128, 128, 3.7, 0, Math.PI * 2); x.fill(); // ponto ~2,2 MOA (o anel é a referência)
-      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; // mipmaps: o anel reduzido não some por serrilhado
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false }));
+      // forma em branco usada só como máscara de alfa (alphaMap): a cor é sempre vermelho puro, o mipmap só reduz a cobertura
+      x.shadowColor = 'rgba(255,255,255,0.5)'; x.shadowBlur = 1.5;
+      x.strokeStyle = '#ffffff'; x.lineWidth = 12;
+      // anel de 68 MOA (traço ~3,5 MOA: no Quest 3S um traço de 1 MOA ficaria com 1/3 de pixel)
+      x.beginPath(); x.arc(128, 128, 110, 0, Math.PI * 2); x.stroke();
+      // ponto ~2,2 MOA (o anel é a referência)
+      x.fillStyle = '#ffffff'; x.beginPath(); x.arc(128, 128, 3.7, 0, Math.PI * 2); x.fill();
+      const t = new THREE.CanvasTexture(cv); t.anisotropy = 4;
+      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(1, 16 / 255, 0, THREE.SRGBColorSpace), alphaMap: t, transparent: true, depthWrite: false, depthTest: false, blending: THREE.NormalBlending, fog: false, toneMapped: false });
+      // vermelho saturado com mistura normal; cobertura reforçada (×3) para o anel reduzido não virar rosa sobre o céu claro
+      mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphamap_fragment>', 'diffuseColor.a *= clamp( texture2D( alphaMap, vAlphaMapUv ).g * 3.0, 0.0, 1.0 );'); };
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
       m.frustumCulled = false; m.renderOrder = 995; m.matrixAutoUpdate = false; this.scene.add(m); this.holoRet = m;
       const self = this;
       m.onBeforeRender = function (r, s, cam) {
@@ -4180,7 +4192,7 @@ Object.assign(G, {
   const _t6 = G.tick; G.tick = function (dt, t) { _t6.call(this, dt, t); if (this.P && this.started) this.updateSlap(dt, this.renderer.xr.isPresenting); };
 }
 /* mão de apoio: manga escondida na visada (não cobre o guarda-mão) */
-const _v6w = new THREE.Vector3();
+const _v6w = new THREE.Vector3(), _v6h = new THREE.Vector3();
 {
   const _gh5 = G.updateGloveHands;
   G.updateGloveHands = function (vr, dt) {
@@ -4192,11 +4204,18 @@ const _v6w = new THREE.Vector3();
       const onHg = this.P && this.P.supHeld === 'handguard';
       sup.sleeveHideT = onHg && (this.stockW || 0) > 0.4 ? 0 : (sup.sleeveHideT === undefined ? 9 : sup.sleeveHideT + Math.min(dt || 0, 0.05));
       sup.sleeve.visible = sup.sleeveHideT >= 0.3;
+      if (sup.cuff) sup.cuff.visible = sup.sleeve.visible;
     }
     // nunca mostrar a manga colada à câmera (evita tubo gigante na frente do olho)
     for (const sd of ['L', 'R']) {
       const H = this.hands[sd]; if (!H || !H.sleeve || !H.root.visible || !H.wb) continue;
-      if (H.wb.getWorldPosition(_v6w).distanceTo(this.headPos) < 0.28) H.sleeve.visible = false;
+      // posição real do olho: câmera do WebXR quando em VR (o el da câmera pode atrasar um quadro)
+      const hp = this.renderer.xr.isPresenting ? _v6h.setFromMatrixPosition(this.renderer.xr.getCamera().matrixWorld) : this.headPos;
+      const dw = H.wb.getWorldPosition(_v6w).distanceTo(hp);
+      if (dw < 0.28) { H.sleeve.visible = false; if (H.cuff) H.cuff.visible = false; }
+      // mão inteira colada ao olho (near 0,03 m) enche a tela: esconde abaixo de 13 cm do centro da mão
+      H.nearDist = H.root.getWorldPosition(_v6w).distanceTo(hp); H.nearHidden = H.nearDist < 0.15;
+      if (H.nearHidden) H.root.visible = false;
     }
   };
 }
