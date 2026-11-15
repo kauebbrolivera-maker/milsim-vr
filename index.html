@@ -618,10 +618,10 @@ function buildMaterials() {
   MAT.vcol = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, metalness: 0.2 });
   MAT.rust = new THREE.MeshStandardMaterial({ vertexColors: true, map: MAT.barrel.map, roughnessMap: MAT.barrel.roughnessMap, bumpMap: MAT.barrel.bumpMap, bumpScale: 0.8, roughness: 1, metalness: 0.45 });
   MAT.dot = new THREE.MeshBasicMaterial({ color: 0xff1a1a, toneMapped: false, fog: false });
-  MAT.glass = new THREE.MeshBasicMaterial({ color: 0x9fc5b5, transparent: true, opacity: 0.12, depthWrite: false, fog: false });
-  MAT.glassStencil = new THREE.MeshBasicMaterial({ color: 0x8fb8c8, transparent: true, opacity: 0.1, depthWrite: false, fog: false, side: THREE.DoubleSide,
+  MAT.glass = new THREE.MeshBasicMaterial({ color: 0x8fc2b0, transparent: true, opacity: 0.2, depthWrite: false, fog: false });
+  MAT.glassStencil = new THREE.MeshBasicMaterial({ color: 0x9cc8b8, transparent: true, opacity: 0.16, depthWrite: false, fog: false, side: THREE.DoubleSide,
     stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp });
-  MAT.optic = new THREE.MeshStandardMaterial({ color: 0x2a2b2c, roughness: 0.55, metalness: 0.35, bumpMap: MAT.gunMetal.bumpMap, bumpScale: 0.15 });
+  MAT.optic = new THREE.MeshStandardMaterial({ color: 0x232426, roughness: 0.62, metalness: 0.3, bumpMap: MAT.gunMetal.bumpMap, bumpScale: 0.15 });
   MAT.laser = new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
   MAT.flash = new THREE.MeshBasicMaterial({ map: flashTex(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false });
   MAT.tracer = new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
@@ -838,13 +838,19 @@ function buildRifle() { // MK18 / M4A1 composto: cilindros arredondados, trilhos
   // mira holográfica estilo EOTech EXPS3: base com trava QD, caixa da bateria, orelhas laterais, capô, molduras e botões
   const accP = [];
   accP.push(xf(Bx(0.03, 0.008, 0.088), 0, 0.1185, -0.09));                                   // base sobre o trilho
-  accP.push(xf(Bx(0.036, 0.022, 0.078), 0, 0.133, -0.093));                                  // corpo / bateria
-  accP.push(xf(Cy(0.011, 0.011, 0.036, 12), 0, 0.131, -0.122, 0, 0, PI2));                   // tampa da bateria (cilindro transversal)
-  accP.push(xf(Bx(0.012, 0.012, 0.02), 0.022, 0.123, -0.075));                                // alavanca QD
-  accP.push(xf(Bx(0.006, 0.034, 0.072), 0.0205, 0.158, -0.092)); accP.push(xf(Bx(0.006, 0.034, 0.072), -0.0205, 0.158, -0.092)); // orelhas
-  const hood = new THREE.CylinderGeometry(0.0235, 0.0235, 0.072, 14, 1, true, -PI2, Math.PI); hood.rotateX(PI2); accP.push(xf(hood, 0, 0.164, -0.092));
-  const hood2 = new THREE.CylinderGeometry(0.0205, 0.0205, 0.072, 14, 1, true, -PI2, Math.PI); hood2.rotateX(PI2); hood2.scale(-1, 1, 1); accP.push(xf(hood2, 0, 0.164, -0.092));
-  accP.push(xf(Bx(0.036, 0.004, 0.006), 0, 0.142, -0.057)); accP.push(xf(Bx(0.036, 0.004, 0.006), 0, 0.142, -0.127)); // molduras inferiores das janelas
+  // corpo arredondado (extrusão com chanfro) sob a janela
+  const rr = (w, h, r, rt) => { const S = new THREE.Shape(), x0 = -w / 2, y0 = -h / 2; rt = rt === undefined ? r : rt;
+    S.moveTo(x0 + r, y0); S.lineTo(-x0 - r, y0); S.quadraticCurveTo(-x0, y0, -x0, y0 + r); S.lineTo(-x0, -y0 - rt); S.quadraticCurveTo(-x0, -y0, -x0 - rt, -y0);
+    S.lineTo(x0 + rt, -y0); S.quadraticCurveTo(x0, -y0, x0, -y0 - rt); S.lineTo(x0, y0 + r); S.quadraticCurveTo(x0, y0, x0 + r, y0); return S; };
+  const ext = (shape, depth, bev) => { const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 5 }); g.translate(0, 0, -depth / 2); return g.toNonIndexed ? g.toNonIndexed() : g; };
+  accP.push(xf(ext(rr(0.033, 0.019, 0.004), 0.074, 0.0015), 0, 0.133, -0.093));                  // corpo / bateria
+  accP.push(xf(Cy(0.0105, 0.0105, 0.038, 14), 0, 0.131, -0.122, 0, 0, PI2));                     // tampa da bateria (cilindro transversal)
+  accP.push(xf(Cy(0.006, 0.006, 0.012, 10), 0.023, 0.124, -0.075, 0, 0, PI2));                   // alavanca QD
+  // capô: moldura única com topo arredondado envolvendo a janela (estilo EXPS3)
+  const hoodS = rr(0.046, 0.04, 0.003, 0.015), win = rr(0.035, 0.028, 0.004); hoodS.holes.push(win);
+  accP.push(xf(ext(hoodS, 0.066, 0.0018), 0, 0.157, -0.092));
+  // bordas mais grossas nas duas aberturas do capô
+  for (const z of [-0.057, -0.127]) { const ring = rr(0.049, 0.043, 0.004, 0.017); ring.holes.push(rr(0.035, 0.028, 0.004)); accP.push(xf(ext(ring, 0.003, 0.001), 0, 0.157, z)); }
   for (let i = 0; i < 3; i++) accP.push(xf(Cy(0.003, 0.003, 0.006, 8), -0.02, 0.128, -0.064 - i * 0.009, 0, 0, PI2)); // botões (brilho / NV)
   accP.push(xf(Cy(0.012, 0.012, 0.075, 10), 0.04, 0.075, -0.33, PI2)); accP.push(xf(Bx(0.012, 0.016, 0.03), 0.032, 0.08, -0.32)); // lanterna/laser
   // massa de mira rebatível
@@ -1070,7 +1076,7 @@ function applyPistolGLB(W, gltf) {
   wrap.position.set(-gripTop.x, 0.035 - gripTop.y, 0.012 - gripTop.z); W.group.updateMatrixWorld(true);
   sb = boxOf(collectVerts(slideNode || model, W.group)); all = boxOf(collectVerts(model, W.group));
   const boreY = sb.min.y + (sb.max.y - sb.min.y) * 0.45;
-  W.A.magTop.set(0, 0.035 - 0.012, 0.012); W.A.magQ.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.lengthSq() > 0.5 ? axis : new THREE.Vector3(0, 1, 0)); W.A.magDepth = 0.035;
+  W.A.magTop.set(0, 0.035 - 0.012, 0.012); W.A.magQ.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.lengthSq() > 0.5 ? axis : new THREE.Vector3(0, 1, 0)); W.A.magDepth = 0.052;
   W.gripAxis = axis.clone(); W.gripCenter = hi.clone().lerp(lo, 0.45).add(wrap.position);
   W.A.muzzle.set(0, boreY, all.min.z - 0.003); W.flash.position.copy(W.A.muzzle).add(new THREE.Vector3(0, 0, -0.04));
   W.A.sight.set(0, sb.max.y + 0.005, sb.max.z - 0.008); W.A.charge.set(0, boreY + 0.006, sb.max.z - 0.02);
@@ -2797,8 +2803,8 @@ const G = {
   /* ---------- laço principal ---------- */
   tick(dt, t) {
     this.time = t;
-    // sombras atualizadas a cada 2 quadros (custo de GPU pela metade; o sol é fixo)
-    if ((this.shadowN = (this.shadowN + 1) % 2) === 0) this.renderer.shadowMap.needsUpdate = true;
+    // sombras atualizadas a cada 3 quadros (o sol é fixo; só objetos móveis mudam)
+    if ((this.shadowN = (this.shadowN + 1) % 3) === 0) this.renderer.shadowMap.needsUpdate = true;
     const vr = this.renderer.xr.isPresenting;
     const active = this.started && !this.paused && !this.menuOpen;
     this.updatePosture(dt, vr);
@@ -3172,7 +3178,7 @@ const HPOSE = {
   fist:   { t: [0.55, 0.55, 0.6], i: [1.45, 1.55, 0.9], m: [1.5, 1.6, 0.95], r: [1.5, 1.6, 0.95], p: [1.5, 1.6, 0.95], ts: 0.4 },
   grip:   { t: [0.95, 0.6, 0.4], i: [-0.38, 0.1, 0.05], m: [1.05, 1.35, 0.8], r: [1.1, 1.35, 0.8], p: [1.15, 1.35, 0.8], ts: 1.0 },
   trig:   { i: [0.62, 0.95, 0.45] },
-  hg:     { t: [0.35, 0.2, 0.15], i: [0.95, 1.05, 0.6], m: [1.0, 1.1, 0.65], r: [1.0, 1.1, 0.65], p: [1.05, 1.1, 0.65], ts: 0.25 },
+  hg:     { t: [0.7, 0.45, 0.35], i: [1.25, 1.3, 0.75], m: [1.35, 1.4, 0.8], r: [1.4, 1.4, 0.8], p: [1.45, 1.4, 0.8], ts: 0.7 },
   mag:    { t: [0.55, 0.35, 0.25], i: [1.05, 1.2, 0.7], m: [1.15, 1.25, 0.75], r: [1.2, 1.3, 0.75], p: [1.25, 1.3, 0.75], ts: 0.5 },
   pinch:  { t: [0.55, 0.45, 0.4], i: [0.85, 1.0, 0.55], m: [1.35, 1.5, 0.9], r: [1.4, 1.55, 0.9], p: [1.45, 1.55, 0.9], ts: 0.55 },
   point:  { t: [0.55, 0.5, 0.55], i: [0.08, 0.05, 0.03], m: [1.45, 1.55, 0.9], r: [1.45, 1.55, 0.9], p: [1.45, 1.55, 0.9], ts: 0.4 },
@@ -3269,7 +3275,7 @@ function handAnchorQ(xAxis, yAxis, left) {
 }
 
 /* ---------- integração das mãos ao jogo: pegadas por objeto, encaixe na empunhadura, dedos pelo gatilho/grip ---------- */
-const HAND_X = new THREE.Vector3(1, 0, 0), HAND_HG_X = new THREE.Vector3(0, -1, 0), HAND_HG_Y = new THREE.Vector3(0, 0, -1);
+const HAND_X = new THREE.Vector3(1, 0, 0), HAND_HG_X = new THREE.Vector3(0.55, -0.83, 0), HAND_HG_Y = new THREE.Vector3(0, 0, -1);
 Object.assign(G, {
   makeGloveHand(side) {
     const a = ASSETS['hand' + side]; if (!a || a.state !== 'ok' || (this.hands && this.hands[side])) return;
@@ -3307,7 +3313,7 @@ Object.assign(G, {
     outQ.copy(handAnchorQ(HAND_X, ax, left));
     if (left) outP.x = -outP.x;
   },
-  hgAnchor(W, left, outP, outQ) { outP.copy(W.A.handguard); if (W.kind === 'rifle') outP.y -= 0.004; outQ.copy(handAnchorQ(HAND_HG_X, HAND_HG_Y, left)); },
+  hgAnchor(W, left, outP, outQ) { outP.copy(W.A.handguard); if (W.kind === 'rifle') { outP.y -= 0.012; outP.x += left ? 0.016 : -0.016; } outQ.copy(handAnchorQ(HAND_HG_X, HAND_HG_Y, left)); },
   updateGloveHands(vr, dt) {
     if (!this.hands) return;
     const P = this.P, W = this.activeW(), gs = this.gunSide();
@@ -3640,9 +3646,14 @@ Object.assign(G, {
     }
     // 3 bolsas abertas de carregador (25–30 cm abaixo do queixo) com divisórias e elásticos
     const py = -0.44, pz = -0.183;
-    B(0.25, 0.1, 0.012, 0, py, pz - 0.028, 0, RG); B(0.25, 0.012, 0.05, 0, py - 0.05, pz, 0, RG);
-    for (let i = 0; i < 4; i++) B(0.008, 0.1, 0.05, -0.12 + i * 0.08, py, pz, 0, RG);
-    for (let i = 0; i < 3; i++) B(0.03, 0.012, 0.004, -0.08 + i * 0.08, py + 0.03, pz - 0.035, 0, DK);
+    for (let i = 0; i < 3; i++) { // bolsa de tecido coyote: frente mais baixa, laterais, fundo, MOLLE e elástico com puxador
+      const x = -0.08 + i * 0.08;
+      B(0.072, 0.105, 0.006, x, py - 0.0075, pz - 0.0225, 0, COY); B(0.072, 0.12, 0.006, x, py, pz + 0.0225, 0, COY);
+      B(0.006, 0.112, 0.045, x - 0.036, py - 0.004, pz, 0, COY); B(0.006, 0.112, 0.045, x + 0.036, py - 0.004, pz, 0, COY);
+      B(0.072, 0.008, 0.045, x, py - 0.058, pz, 0, COY);
+      B(0.074, 0.009, 0.003, x, py - 0.02, pz - 0.0265, 0, DK); B(0.074, 0.009, 0.003, x, py - 0.045, pz - 0.0265, 0, DK);
+      B(0.004, 0.004, 0.05, x, py + 0.066, pz, 0, 0x2b2a26); B(0.022, 0.016, 0.005, x, py + 0.052, pz - 0.027, 0, DK);
+    }
     B(0.17, 0.08, 0.025, 0, -0.565, -0.165, 0, COY); B(0.012, 0.06, 0.012, 0.07, -0.56, -0.18, 0, 0x5a8a48); // painel admin + bastão químico
     B(0.065, 0.11, 0.04, -0.2, -0.52, -0.06, 0, RG); parts.push(tint(xf(Cy(0.004, 0.004, 0.2, 5), -0.21, -0.38, -0.05), 0x1e1e1c)); // rádio + antena
     parts.push(tint(xf(Cy(0.04, 0.04, 0.07, 10), SLOTS.grenade.x, SLOTS.grenade.y - 0.045, SLOTS.grenade.z), RG)); // bolsa de granada
@@ -3656,7 +3667,7 @@ Object.assign(G, {
     this.pouchHL = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.11, 0.06), new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0, depthWrite: false, fog: false, toneMapped: false, wireframe: true }));
     this.pouchHL.position.set(0, py, pz); this.pouchHL.visible = false; inner.add(this.pouchHL);
     this.pouchMags = [];
-    for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(MAGT.rifle.geo, MAGT.rifle.mat); m.position.set(-0.08 + i * 0.08, -0.35, -0.183); m.scale.setScalar(0.85); inner.add(m); this.pouchMags.push(m); }
+    for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(MAGT.rifle.geo, MAGT.rifle.mat); m.position.set(-0.08 + i * 0.08, py + 0.064, pz); m.scale.set(0.85, 0.72, 0.85); inner.add(m); this.pouchMags.push(m); }
     this.vestGrenade = new THREE.Mesh(grenadeGeo(), MAT.vcol); this.vestGrenade.position.copy(SLOTS.grenade); inner.add(this.vestGrenade);
     this.vestSyringe = new THREE.Mesh(syringeGeo(), MAT.vcol); this.vestSyringe.position.copy(SLOTS.syringe); this.vestSyringe.rotation.x = Math.PI / 2; inner.add(this.vestSyringe);
     this.scene.add(v);
@@ -3779,6 +3790,20 @@ Object.assign(G, {
     if (this.time - this.injSeen > 0.15) this.injT = 0;
     if (this.pouchHL) { const on = vr && this.supHand().hover === 'pouch'; const op = damp(this.pouchHL.material.opacity, on ? 0.5 : 0, 14, dt); this.pouchHL.material.opacity = op; this.pouchHL.visible = op > 0.02; }
     this.vest.visible = vr; // no navegador a câmera atravessaria o corpo
+    const hm = P.handMag, mm = this.magCheckMesh;
+    if (mm) {
+      let show = false;
+      if (vr && hm && hm.m && P.supHeld === 'mag') {
+        const mp = hm.m.getWorldPosition(_xA), d = mp.distanceTo(this.headPos);
+        if (d < 0.38 && _xB.subVectors(mp, this.headPos).normalize().dot(this.headFwd) > 0.7) {
+          show = true; const cap = hm.kind === 'rifle' ? CFG.RIFLE_MAG : CFG.PISTOL_MAG, f = hm.rounds / cap;
+          const txt = hm.rounds === 0 ? 'vazio' : f >= 0.95 ? 'cheio' : f > 0.6 ? 'mais da metade' : f > 0.35 ? 'metade' : 'pouca munição';
+          if (txt !== this.magCheck.last) { const c = this.magCheck.ctx; c.clearRect(0, 0, 256, 64); c.fillStyle = 'rgba(10,12,10,0.7)'; c.fillRect(0, 8, 256, 48); c.fillStyle = '#f0e6c8'; c.font = 'bold 30px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(txt, 128, 33); this.magCheck.tex.needsUpdate = true; this.magCheck.last = txt; }
+          mm.position.copy(mp).addScaledVector(this.headFwd, -0.02); mm.position.y += 0.07; mm.quaternion.copy(this.headQuat);
+        }
+      }
+      mm.visible = show;
+    }
     this.updateComfort(dt, vr);
   }
 });
@@ -3789,7 +3814,11 @@ Object.assign(G, {
   G.setup = function (el) {
     _setup.call(this, el);
     this.buildComfort(); this.buildOperation();
-    this.trimShadows();
+    this.trimShadows(); this.renderer.setPixelRatio(1);
+    // checagem do carregador: aproxime o pente do rosto para estimar a munição (sem HUD)
+    const mc = makeCanvas(256); mc.height = 64; this.magCheck = { cv: mc, ctx: mc.getContext('2d'), tex: new THREE.CanvasTexture(mc), last: '' }; this.magCheck.tex.colorSpace = THREE.SRGBColorSpace;
+    this.magCheckMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.0225), new THREE.MeshBasicMaterial({ map: this.magCheck.tex, transparent: true, depthWrite: false, fog: false, toneMapped: false }));
+    this.magCheckMesh.visible = false; this.magCheckMesh.renderOrder = 996; this.scene.add(this.magCheckMesh);
     const K = this.input.keys;
     window.addEventListener('keydown', e => {
       if (this.mode !== 'desktop') return;
