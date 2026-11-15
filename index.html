@@ -842,7 +842,7 @@ function buildRifle() { // MK18 / M4A1 composto: cilindros arredondados, trilhos
   const rr = (w, h, r, rt) => { const S = new THREE.Shape(), x0 = -w / 2, y0 = -h / 2; rt = rt === undefined ? r : rt;
     S.moveTo(x0 + r, y0); S.lineTo(-x0 - r, y0); S.quadraticCurveTo(-x0, y0, -x0, y0 + r); S.lineTo(-x0, -y0 - rt); S.quadraticCurveTo(-x0, -y0, -x0 - rt, -y0);
     S.lineTo(x0 + rt, -y0); S.quadraticCurveTo(x0, -y0, x0, -y0 - rt); S.lineTo(x0, y0 + r); S.quadraticCurveTo(x0, y0, x0 + r, y0); return S; };
-  const ext = (shape, depth, bev) => { const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 5 }); g.translate(0, 0, -depth / 2); return g.toNonIndexed ? g.toNonIndexed() : g; };
+  const ext = (shape, depth, bev) => { const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 5 }); g.translate(0, 0, -depth / 2); return g; };
   accP.push(xf(ext(rr(0.033, 0.019, 0.004), 0.074, 0.0015), 0, 0.133, -0.093));                  // corpo / bateria
   accP.push(xf(Cy(0.0105, 0.0105, 0.038, 14), 0, 0.131, -0.122, 0, 0, PI2));                     // tampa da bateria (cilindro transversal)
   accP.push(xf(Cy(0.006, 0.006, 0.012, 10), 0.023, 0.124, -0.075, 0, 0, PI2));                   // alavanca QD
@@ -1455,7 +1455,7 @@ class Enemy {
     if (this.useGLB) {
       const model = cloneSkinned(ASSETS.soldier.gltf.scene);
       model.scale.multiplyScalar(G.soldierScale); model.rotation.y = CFG.SOLDIER_YAW;
-      model.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+      model.traverse(o => { if (o.isMesh) { o.castShadow = true; if (o.geometry) { if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere(); if (!o.geometry.userData.bsGrown) { o.geometry.boundingSphere.radius *= 1.6; o.geometry.userData.bsGrown = true; } } o.frustumCulled = true; } }); // culling com esfera folgada (pose animada)
       this.body.add(model); this.model = model;
       this.mixer = new THREE.AnimationMixer(model); this.actions = {};
       for (const clip of ASSETS.soldier.gltf.animations) {
@@ -3311,10 +3311,10 @@ Object.assign(G, {
         this.cuffMat = new THREE.MeshStandardMaterial({ color: 0x5e4e3a, roughness: 0.85, envMapIntensity: 0.5 });
       }
       const lathe = (pts) => new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 18);
-      const cuff = new THREE.Mesh(lathe([[0.029, -0.025], [0.032, -0.018], [0.0335, 0.0], [0.033, 0.02], [0.031, 0.025]]), this.cuffMat);
+      const cuff = new THREE.Mesh(lathe([[0.025, -0.02], [0.0275, -0.014], [0.0285, 0.0], [0.028, 0.016], [0.026, 0.02]]), this.cuffMat);
       cuff.geometry.translate(0, 0.012, 0); cuff.quaternion.copy(qArm); cuff.position.copy(armDir).multiplyScalar(0.005);
       // manga do uniforme: punho dobrado, antebraço que engrossa e ponta fechada (sem aspecto de cone/tubo)
-      const sleeve = new THREE.Mesh(lathe([[0.034, -0.045], [0.039, -0.04], [0.04, -0.03], [0.037, -0.024], [0.041, -0.01], [0.044, 0.02], [0.045, 0.04], [0.03, 0.046], [0.0, 0.047]]), this.sleeveMat); // ~9 cm: não cobre a mão na visada
+      const sleeve = new THREE.Mesh(lathe([[0.029, -0.045], [0.033, -0.04], [0.034, -0.03], [0.032, -0.024], [0.035, -0.01], [0.038, 0.02], [0.039, 0.04], [0.026, 0.046], [0.0, 0.047]]), this.sleeveMat); // ~9 cm: não cobre a mão na visada
       sleeve.geometry.translate(0, 0.155, 0); sleeve.quaternion.copy(qArm);
       h.root.updateMatrixWorld(true); const ws = new THREE.Vector3(); wb.getWorldScale(ws); const inv = 1.06 / Math.max(1e-4, ws.x);
       [cuff, sleeve].forEach(m => { m.castShadow = true; m.material.side = THREE.DoubleSide; m.scale.setScalar(inv); m.position.multiplyScalar(inv); wb.add(m); });
@@ -4010,6 +4010,40 @@ Object.assign(G, {
 {
   const _nm = G.newMag; G.newMag = function (kind, rounds) { const m = _nm.call(this, kind, rounds); this.decorateMag(m); return m; };
   const _t4 = G.tick; G.tick = function (dt, t) { _t4.call(this, dt, t); this.v4Update(); if (window.__milsimTest && !window.__milsimTest.FX) window.__milsimTest.FX = FX; };
+}
+/* ---------- retículo holográfico por olho: projetado no vidro ao longo da linha olho→ponto de zeragem (paralaxe real, sem stencil) ----------
+   Cada olho (câmera do WebXR) recalcula onde a linha de visada cruza o vidro: o retículo parece estar no infinito, aparece em qualquer
+   ponto da janela e só some quando o olho sai da área do vidro. Anel 68 MOA + ponto 1 MOA. */
+{
+  const _rE = new THREE.Vector3(), _rP = new THREE.Vector3(), _rM = new THREE.Matrix4(), _rS = new THREE.Vector3(), _rQ = new THREE.Quaternion(), _rInv = new THREE.Matrix4();
+  G.updateSight = function (W, vr) {
+    if (this.holoDot) this.holoDot.visible = false;
+    if (!this.holoRet) {
+      const cv = makeCanvas(256), x = cv.getContext('2d');
+      x.shadowColor = 'rgba(255,40,30,0.9)'; x.shadowBlur = 4;
+      x.strokeStyle = 'rgba(255,45,30,1)'; x.lineWidth = 6.5; // traço ~2 MOA: legível na resolução do Quest (o real é ~1 MOA) x.beginPath(); x.arc(128, 128, 110, 0, Math.PI * 2); x.stroke();
+      x.fillStyle = 'rgba(255,80,60,1)'; x.beginPath(); x.arc(128, 128, 3.2, 0, Math.PI * 2); x.fill(); // ponto de 1 MOA ampliado p/ ~2 MOA (subpixel no headset)
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false }));
+      m.frustumCulled = false; m.renderOrder = 995; m.matrixAutoUpdate = false; this.scene.add(m); this.holoRet = m;
+      const self = this;
+      m.onBeforeRender = function (r, s, cam) {
+        const Wr = self.rifle, A = Wr.A, S = A.sight; Wr.group.updateMatrixWorld();
+        _rInv.copy(Wr.group.matrixWorld).invert();
+        _rE.setFromMatrixPosition(cam.matrixWorld).applyMatrix4(_rInv);          // olho no espaço da arma
+        const zg = S.z - 0.034, D = CFG.ZERO;                                   // vidro frontal; ponto de zeragem a D metros
+        const tz = (_rE.z - zg) / Math.max(1e-3, _rE.z - (S.z - D));
+        _rP.set(_rE.x + (S.x - _rE.x) * tz, _rE.y + (S.y - _rE.y) * tz, zg);
+        const inWin = _rE.z > S.z && Math.abs(_rP.x - S.x) < 0.0165 && Math.abs(_rP.y - S.y) < 0.0128; self.holoInWin = inWin; self.holoEye = _rE.toArray(); if (inWin) self.holoSeenT = self.time;
+        const sz = Math.max(1e-4, _rE.z - zg) * (68 / 3437.75) * 256 / 220;     // anel subtende 68 MOA a partir do olho
+        _rS.set(inWin ? sz : 1e-6, inWin ? sz : 1e-6, 1);
+        _rM.compose(_rP, _rQ.identity(), _rS); this.matrixWorld.multiplyMatrices(Wr.group.matrixWorld, _rM);
+        this.modelViewMatrix.multiplyMatrices(cam.matrixWorldInverse, this.matrixWorld);
+        this.normalMatrix.getNormalMatrix(this.modelViewMatrix);
+      };
+    }
+    this.holoRet.visible = W.kind === 'rifle' && !this.menuOpen && W.group.visible;
+  };
 }
 })();
 </script>
