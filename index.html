@@ -3311,7 +3311,7 @@ Object.assign(G, {
         this.cuffMat = new THREE.MeshStandardMaterial({ color: 0x5e4e3a, roughness: 0.85, envMapIntensity: 0.5 });
       }
       const lathe = (pts) => new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 18);
-      const cuff = new THREE.Mesh(lathe([[0.025, -0.02], [0.0275, -0.014], [0.0285, 0.0], [0.028, 0.016], [0.026, 0.02]]), this.cuffMat);
+      const cuff = new THREE.Mesh(lathe([[0.025, -0.02], [0.0275, -0.014], [0.0285, 0.0], [0.028, 0.016], [0.026, 0.02], [0.012, 0.022], [0.0, 0.0225]]), this.cuffMat);
       cuff.geometry.translate(0, 0.012, 0); cuff.quaternion.copy(qArm); cuff.position.copy(armDir).multiplyScalar(0.005);
       // manga do uniforme: punho dobrado, antebraço que engrossa e ponta fechada (sem aspecto de cone/tubo)
       const sleeve = new THREE.Mesh(lathe([[0.029, -0.045], [0.033, -0.04], [0.034, -0.03], [0.032, -0.024], [0.035, -0.01], [0.038, 0.02], [0.039, 0.04], [0.026, 0.046], [0.0, 0.047]]), this.sleeveMat); // ~9 cm: não cobre a mão na visada
