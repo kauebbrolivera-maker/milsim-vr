@@ -53,7 +53,7 @@
 const THREE = AFRAME.THREE;
 
 /* ---------------------- Configuração geral ---------------------- */
-const CFG = {
+const CFG = { DEBUG_AMMO: /[?&]ammo=1/.test(location.search),
   MODEL_TIMEOUT_MS: 20000, WEAPON_TIMEOUT_MS: 20000,     // tempo máximo para um .glb externo antes do fallback procedural
   SHADOW_MAP: 1024,           // mapa de sombra pequeno (seguro para o XR2 Gen 2)
   TEX: 512,                   // resolução das texturas procedurais
@@ -2044,8 +2044,8 @@ const SLOTS = {
 const DESK_HIP = new THREE.Vector3(0.21, -0.25, -0.5), DESK_ADS = new THREE.Vector3(0, -0.15, -0.21);
 // parâmetros do sistema de carregador/ferrolho (inspirados em Onward, H3VR, Pavlov, Contractors e Bonelab)
 const MAGSYS = {
-  CAPTURE_LAT: 0.06, CAPTURE_ANG: Math.cos(30 * Math.PI / 180), SNAP_FRAC: 0.85, SNAP_T: 0.05, PULL_OUT: 0.085, SLAP_V: 1.0, SHAKE_V: 2.2,
-  GRAB_R: 0.12, HG_R: 0.15, CHARGE_R: 0.065, HOLSTER_R: 0.16, BACK_R: 0.17, PICK_R: 0.13, FREE_MAX: 10
+  CAPTURE_LAT: 0.06, CAPTURE_ANG: Math.cos(35 * Math.PI / 180), SNAP_FRAC: 0.85, SNAP_T: 0.05, PULL_OUT: 0.085, SLAP_V: 1.0, SHAKE_V: 2.2,
+  GRAB_R: 0.12, HG_R: 0.15, CHARGE_R: 0.065, HOLSTER_R: 0.16, BACK_R: 0.17, PICK_R: 0.22, STOW_R: 0.22, MAGNET_R: 0.34, FREE_MAX: 10
 };
 const MAGT = { rifle: null, pistol: null }; // modelo dos carregadores { geo, mat, len }
 
@@ -2575,12 +2575,15 @@ const G = {
     const P = this.P, mag = P.handMag, sh = this.supHand(); if (!mag) return;
     if (mag.state === 'socket') { this.seatMag(mag, P.weapon, false); return; }
     P.handMag = null; P.supHeld = null;
-    if (sh.pos.distanceTo(this.slotWorld('pouch', _v1)) < MAGSYS.GRAB_R * Settings.reachK() + 0.03) {
+    const dP = sh.pos.distanceTo(this.slotWorld('pouch', _v1));
+    if (dP < MAGSYS.STOW_R * Settings.reachK()) {
       if (mag.rounds > 0) { P.pouch[mag.kind].push(mag.rounds); SFX.pickup(); this.haptic('sup', 0.25, 20); this.msg('Pente guardado (' + mag.rounds + ')', 1); }
       else this.msg('Pente vazio descartado', 1);
       this.removeMag(mag); this.hudDirty = true; return;
     }
     this.setFree(mag, _v2.copy(sh.vel));
+    // ímã suave: solto perto da bolsa, o pente voa até ela e é guardado
+    if (dP < MAGSYS.MAGNET_R * Settings.reachK()) { mag.homeT = 0.22; mag.homeFrom = mag.proxy.position.clone(); }
   },
   // lógica do encaixe (magwell): cone de ângulo + trilho ao longo do eixo + profundidade
   updateSocket() {
@@ -2705,7 +2708,7 @@ const G = {
         if (!ws.grabbed) ws.checked = false;
       }
       if (W.sel && W.sel.node) { const target = W.sel.base + (W.sel.angles[ws.mode] || 0); W.sel.node.rotation.x = damp(W.sel.node.rotation.x, target, 30, dt); }
-      W.counter.mesh.visible = !!this.S.showAmmo || this.mode === 'desktop';
+      W.counter.mesh.visible = this.mode === 'desktop' && CFG.DEBUG_AMMO; // sem número de munição na tela (só depuração no navegador com ?ammo=1)
       if (Math.abs(v - ws.boltVis) > 1e-4 && ch.node) { ws.boltVis = v; ch.node.position.copy(ch.base).addScaledVector(ch.dir, v * ch.travel); }
     }
   },
@@ -2824,7 +2827,7 @@ const G = {
       { t: () => 'Colete altura', v: () => cm(S.vestY), adj: d => { S.vestY = clamp(S.vestY + 0.01 * d, -0.1, 0.1); } },
       { t: () => 'Modo', v: () => S.seated ? 'Sentado' : 'Em pé', act: () => this.toggleSeated() },
       { t: () => 'Recentrar visão', v: () => '', act: () => { this.recenter(); this.menu.note = 'Visão recentrada'; } },
-      { t: () => 'Liberar ferrolho ao inserir pente', v: () => yn(S.autoBoltRelease), act: () => { S.autoBoltRelease = !S.autoBoltRelease; } },
+      { t: () => 'Liberar ferrolho ao inserir pente', v: () => 'não (manobre a alavanca)', act: () => { S.autoBoltRelease = false; G.msg('Realista: depois de inserir o pente, puxe a alavanca de manejo', 2); } },
       { t: () => 'Mostrar controles', v: () => yn(S.showControllers), act: () => { S.showControllers = !S.showControllers; this.applyControllerVisibility(); } },
       { t: () => 'Coronha virtual (fuzil)', v: () => yn(S.virtualStock), act: () => { S.virtualStock = !S.virtualStock; } },
       { t: () => 'Giro', v: () => S.turnMode === 'smooth' ? 'Suave' : 'Rápido 30°', act: () => { S.turnMode = S.turnMode === 'smooth' ? 'snap' : 'smooth'; } },
@@ -3199,7 +3202,7 @@ const G = {
     if (this.hudDirty || this.hudT <= 0) { this.hudDirty = false; this.hudT = 0.25; this.updateHUD(); }
   },
   drawCounter(W, ws) {
-    const m = ws.mag, txt = ws.boltLocked ? 'TRAV' : (m ? (m.seated ? m.rounds : '?') : '--') + (ws.chambered ? '+1' : '+0'), c = W.counter;
+    const m = ws.mag, txt = ws.boltLocked ? 'TRAV' : (m ? (m.seated ? Math.max(0, m.rounds | 0) : '?') : '0') + (ws.chambered ? '+1' : '+0'), c = W.counter;
     if (c.last === txt) return; c.last = txt;
     const x = c.ctx; x.clearRect(0, 0, 128, 64); x.fillStyle = 'rgba(10,14,10,0.85)'; x.fillRect(0, 0, 128, 64);
     const low = !m || m.rounds < 6; x.fillStyle = (!ws.chambered || ws.boltLocked) ? '#ff4040' : low ? '#ffb030' : '#7dff7d';
@@ -3974,7 +3977,7 @@ Object.assign(G, {
     const hm = P.handMag, mm = this.magCheckMesh;
     if (mm) {
       let show = false;
-      if (vr && this.S.showAmmo && hm && hm.m && P.supHeld === 'mag') { // rótulo só no modo fácil; no realista a checagem é visual (cartucho/transportador)
+      if (vr && this.S.showAmmo && CFG.DEBUG_AMMO && hm && hm.m && P.supHeld === 'mag') { // rótulo só no modo fácil; no realista a checagem é visual (cartucho/transportador)
         const mp = hm.m.getWorldPosition(_xA), d = mp.distanceTo(this.headPos);
         if (d < 0.38 && _xB.subVectors(mp, this.headPos).normalize().dot(this.headFwd) > 0.7) {
           show = true; const cap = hm.kind === 'rifle' ? CFG.RIFLE_MAG : CFG.PISTOL_MAG, f = hm.rounds / cap;
@@ -4144,13 +4147,16 @@ Object.assign(G, {
   // cartucho de cima (com lábios de alimentação) ou transportador visível quando vazio
   magTopParts(kind) {
     this.magTopGeo = this.magTopGeo || {};
-    if (!this.magTopGeo[kind]) {
+    const _T0 = MAGT[kind], _glb = !!(_T0 && _T0.glb);
+    if (!this.magTopGeo[kind] || this.magTopGeo[kind].glb !== _glb) {
       const rifle = kind === 'rifle', cl = rifle ? 0.045 : 0.019, bl = rifle ? 0.012 : 0.009, r = rifle ? 0.0048 : 0.0049;
       const cs = Cy(r, r, cl, 10); const bu = Cy(0.0002, r * 0.6, bl, 10);
-      const zc = rifle ? 0.008 : 0.004;
+      let zc = rifle ? 0.008 : 0.004;
+      // cartucho do topo DENTRO dos lábios: a base do estojo fica 4 mm antes da parede traseira do pente (malha .glb)
+      const T = MAGT[kind]; if (rifle && T && T.glb) { const pa = T.geo.attributes.position; let zmax = -1, zmin = 1; for (let i = 0; i < pa.count; i++) if (pa.getY(i) > -0.012) { zmax = Math.max(zmax, pa.getZ(i)); zmin = Math.min(zmin, pa.getZ(i)); } if (zmax > zmin) zc = zmax - 0.004 - cl / 2; this.magTopZ = [zmin, zmax, zc]; }
       const round = mergeGeos([tint(xf(cs, rifle ? 0.0025 : 0, -0.0055, zc, Math.PI / 2), 0xb5913e), tint(xf(bu, rifle ? 0.0025 : 0, -0.0055, zc - cl / 2 - bl / 2, -Math.PI / 2), 0xa3612f)]);
       const fol = tint(xf(Bx(rifle ? 0.017 : 0.014, 0.004, rifle ? 0.05 : 0.026), 0, -0.009, rifle ? 0.002 : 0.002), rifle ? 0x6d6a5c : 0x3a3a36);
-      this.magTopGeo[kind] = { round, fol };
+      this.magTopGeo[kind] = { round, fol, glb: _glb };
     }
     return this.magTopGeo[kind];
   },
@@ -4163,7 +4169,7 @@ Object.assign(G, {
   updateMagTop(mag) { if (mag.top) { mag.top.visible = mag.rounds > 0; mag.fol.visible = mag.rounds <= 0; } },
   v4Update() {
     if (!this.mags) return;
-    for (const m of this.mags) { if (!m.top) this.decorateMag(m); else if (m.m.visible) this.updateMagTop(m); }
+    for (const m of this.mags) { if (!m.top) this.decorateMag(m); else { const g = this.magTopParts(m.kind); if (m.top.geometry !== g.round) { m.top.geometry = g.round; m.fol.geometry = g.fol; } if (m.m.visible) this.updateMagTop(m); } }
   }
 });
 {
@@ -4774,6 +4780,61 @@ CFG.PLAYER_DMG_K = 0.45; CFG.PLAYER_HEAD_MAX = 45; CFG.ENEMY_SPREAD_K = 1.5;
   };
   const _t13 = G.tick;
   G.tick = function (dt, t) { this._dtLast = Math.min(dt || 0.016, 0.05); _t13.call(this, dt, t); if (this.started && this.P) { this.updateActionParts(this._dtLast); if (this.renderer.xr.isPresenting) this.updateStowGesture(); } };
+}
+/* recarga mais tolerante: ímã da bolsa, pentes do chão fáceis de recolher, funil magnético no magwell; boca do cano no centro real do cano do .glb */
+{
+  const _hv = new THREE.Vector3(), _sock = G.updateSocket;
+  G.updateSocket = function () {
+    const P = this.P, mag = P.handMag;
+    _sock.call(this);
+    if (!mag || P.handMag !== mag) return;
+    // funil: depois de capturado (topo a ~6 cm da boca e alinhado ±35°), o pente é guiado até travar sem precisar empurrar exato
+    if (mag.state === 'socket') {
+      const W = this.activeW(), D = W.A.magDepth, dt = this._dtLast || 0.016;
+      mag.guide = Math.min(D, Math.max(mag.guide || 0, mag.depth || 0) + 0.45 * dt);
+      if (mag.guide > mag.depth) { mag.depth = mag.guide; this.placeMagInGun(mag, W); if (!mag.guideHap) { this.haptic('sup', 0.2, 12); mag.guideHap = true; } }
+      if (mag.depth >= MAGSYS.SNAP_FRAC * D) this.seatMag(mag, P.weapon, true);
+    } else { mag.guide = 0; mag.guideHap = false; }
+  };
+  Object.assign(G, {
+    updateMagAssist(dt, vr) {
+      const P = this.P; if (!P) return;
+      const pouch = this.slotWorld('pouch', _hv);
+      for (let i = this.mags.length - 1; i >= 0; i--) {
+        const m = this.mags[i];
+        if (m.state !== 'free') { m.homeT = 0; continue; }
+        if (m.homeT > 0) { // ímã: voa até a bolsa e é guardado
+          m.homeT = Math.max(0, m.homeT - dt); const k = 1 - m.homeT / 0.22;
+          m.proxy.position.lerpVectors(m.homeFrom, pouch, k * k); m.vel.set(0, 0, 0);
+          m.m.position.copy(m.proxy.position);
+          if (m.homeT <= 0) this.stowFreeMag(m, 'Pente guardado (');
+          continue;
+        }
+        // pente parado no chão a até 30 cm dos pés: recolhido ao passar por cima (ou ao abaixar perto)
+        if (vr && m.vel.lengthSq() < 0.05 && m.proxy.position.y < 0.3 && m.rounds > 0) {
+          const dx = m.proxy.position.x - this.headPos.x, dz = m.proxy.position.z - this.headPos.z;
+          if (dx * dx + dz * dz < 0.09) this.stowFreeMag(m, 'Pente recolhido do chão (');
+        }
+      }
+    },
+    stowFreeMag(m, label) {
+      if (m.rounds > 0) { this.P.pouch[m.kind].push(m.rounds); SFX.pickup(); this.haptic('sup', 0.3, 20); this.msg(label + m.rounds + ')', 1); }
+      else this.msg('Pente vazio descartado', 1);
+      this.removeMag(m); this.hudDirty = true; this.stowCount = (this.stowCount || 0) + 1;
+    },
+    fixMuzzleTip() {
+      const W = this.rifle; if (!W || !W.glb || W.muzzleFixed) return; W.muzzleFixed = true;
+      const b = W.glb.getObjectByName('Barrel'); if (!b) return;
+      W.group.updateMatrixWorld(true); const M = W.group.matrixWorld.clone().invert().multiply(b.matrixWorld), pa = b.geometry.attributes.position, v = new THREE.Vector3();
+      let mn = 1; for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(M); mn = Math.min(mn, v.z); }
+      const c = new THREE.Vector3(); let n = 0;
+      for (let i = 0; i < pa.count; i++) { v.fromBufferAttribute(pa, i).applyMatrix4(M); if (v.z < mn + 0.004) { c.add(v); n++; } }
+      if (!n) return; c.multiplyScalar(1 / n);
+      W.A.muzzle.set(c.x, c.y, mn - 0.002); W.flash.position.copy(W.A.muzzle).add(new THREE.Vector3(0, 0, -0.06)); W.muzzleTip = W.A.muzzle.clone();
+    }
+  });
+  const _t14 = G.tick;
+  G.tick = function (dt, t) { _t14.call(this, dt, t); if (this.started && this.P) { this.S.autoBoltRelease = false; this.fixMuzzleTip(); this.updateMagAssist(this._dtLast || 0.016, this.renderer.xr.isPresenting); } };
 }
 })();
 </script>
