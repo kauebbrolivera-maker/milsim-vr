@@ -206,10 +206,10 @@ function texWood(s) {
 function texBarrel(s) {
   const r = mulberry32(67), n = tileNoise(s, r, 4, 4), n2 = tileNoise(s, r, 16, 2);
   return buildSet(s, (i, x, y, p) => {
-    const rust = n[i] * 0.7 + n2[i] * 0.3 > 0.62;
+    const rust = n[i] * 0.7 + n2[i] * 0.3 > 0.7;
     const v = y / s, rib = (Math.abs(v - 0.33) < 0.02 || Math.abs(v - 0.66) < 0.02);
     const k = 0.85 + n2[i] * 0.25;
-    if (rust) { p[0] = 118 * k; p[1] = 70 * k; p[2] = 40 * k; p[3] = 245; }
+    if (rust) { p[0] = 96 * k; p[1] = 78 * k; p[2] = 60 * k; p[3] = 235; } // ferrugem gasta, pouco saturada
     else { p[0] = 210 * k; p[1] = 210 * k; p[2] = 210 * k; p[3] = 120 + n2[i] * 60; }
     p[4] = rib ? 230 : 120 + n[i] * 40;
   });
@@ -732,7 +732,7 @@ function buildMap(scene) {
   crates.castShadow = true; crates.receiveShadow = true; scene.add(crates);
 
   const barrels = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.29, 0.29, 0.88, 14, 1), MAT.barrel, BARRELS.length);
-  const palette = [0x58604a, 0x6a4a38, 0x4c5a64, 0x5f6248, 0x77736a, 0x6e5a44]; // tambores de 200 L desbotados (oliva, ferrugem, azul gasto)
+  const palette = [0x5a6150, 0x4f5545, 0x5c5f58, 0x66624f, 0x4a5058, 0x5e5446]; // tambores de 200 L desbotados (oliva, ferrugem, azul gasto)
   BARRELS.forEach((b, i) => {
     q.setFromAxisAngle(AX_Y, i * 1.7); p.set(b[0], 0.44, b[1]); m.compose(p, q, s1); barrels.setMatrixAt(i, m);
     barrels.setColorAt(i, new THREE.Color(palette[i % palette.length]));
@@ -2044,8 +2044,8 @@ const G = {
     this.blackout.position.z = -0.085; this.blackout.renderOrder = 999; this.blackout.visible = false; this.cam.add(this.blackout);
     const mc = makeCanvas(512); mc.height = 128;
     this.msgPanel = { cv: mc, ctx: mc.getContext('2d'), tex: new THREE.CanvasTexture(mc) }; this.msgPanel.tex.colorSpace = THREE.SRGBColorSpace;
-    this.msgMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.2), new THREE.MeshBasicMaterial({ map: this.msgPanel.tex, transparent: true, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
-    this.msgMesh.position.set(0, 0.12, -1.3); this.msgMesh.renderOrder = 997; this.msgMesh.visible = false; this.cam.add(this.msgMesh);
+    this.msgMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 0.0875), new THREE.MeshBasicMaterial({ map: this.msgPanel.tex, transparent: true, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
+    this.msgMesh.position.set(0, -0.3, -1.3); this.msgPanel.tex.generateMipmaps = false; this.msgPanel.tex.minFilter = THREE.LinearFilter; // dica pequena, abaixo da linha de visada this.msgMesh.renderOrder = 997; this.msgMesh.visible = false; this.cam.add(this.msgMesh);
     // relógio de pulso (mão de apoio)
     const wc = makeCanvas(256); wc.height = 128;
     this.wrist = { cv: wc, ctx: wc.getContext('2d'), tex: new THREE.CanvasTexture(wc), last: '' }; this.wrist.tex.colorSpace = THREE.SRGBColorSpace;
@@ -2100,6 +2100,11 @@ const G = {
   },
 
   msg(text, secs) {
+    if (this.mode === 'vr') { // VR: dica curta (0,8–1,2 s) e só uma vez por texto a cada 20 s
+      this.msgSeen = this.msgSeen || {}; const now = performance.now();
+      if (this.msgSeen[text] && now - this.msgSeen[text] < 20000) return; this.msgSeen[text] = now;
+      secs = clamp(secs || 1, 0.8, 1.2);
+    }
     this.msgT = secs || 2.5;
     const p = this.msgPanel, c = p.ctx; c.clearRect(0, 0, 512, 128);
     c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(0, 20, 512, 88);
@@ -2822,10 +2827,10 @@ const G = {
     if ((this.shadowN = (this.shadowN + 1) % 3) === 0) this.renderer.shadowMap.needsUpdate = true;
     const vr = this.renderer.xr.isPresenting;
     const active = this.started && !this.paused && !this.menuOpen;
+    if (vr) this.readXRButtons(); // botões antes da postura: o toque em Y age no mesmo quadro
     this.updatePosture(dt, vr);
     this.rig.position.y = (vr && this.S.seated ? this.S.seatOffset : 0) + this.postureY;
     this.updateHead();
-    if (vr) this.readXRButtons();
     for (let i = this.seq.length - 1; i >= 0; i--) { this.seq[i].t -= dt; if (this.seq[i].t <= 0) { const f = this.seq[i].fn; this.seq.splice(i, 1); f(); } }
     const prevX = this.headPos.x, prevZ = this.headPos.z;
     if (active && this.P.alive) { if (vr) this.vrLocomotion(dt); else if (this.mode === 'desktop') this.deskLocomotion(dt); }
@@ -2950,7 +2955,7 @@ const G = {
         let sw = 0;
         if (P.weapon === 'rifle' && this.S.virtualStock && twoHand && sh.valid && act.A.butt) {
           const sa = this.shoulderAnchor(_v4), butt = _v5.copy(act.A.butt).applyQuaternion(q).add(pos);
-          sw = 1 - smoothstep(0.09, 0.2, butt.distanceTo(sa));
+          sw = 1 - smoothstep(0.18, 0.3, butt.distanceTo(sa)); // engata com a soleira a até 25–30 cm do ombro
           if (sw > 0.001) {
             this.stockPose(act, q, pos, sh.pos, sw);
           }
@@ -3214,8 +3219,8 @@ let GLOVE_MAT = null;
 function gloveMaterial() {
   if (GLOVE_MAT) return GLOVE_MAT;
   const S = 128, cv = makeCanvas(S), x = cv.getContext('2d'), cb = makeCanvas(S), xb = cb.getContext('2d');
-  x.fillStyle = '#6f5c43'; x.fillRect(0, 0, S, S); xb.fillStyle = '#808080'; xb.fillRect(0, 0, S, S);
-  for (let i = 0; i < 2200; i++) { const px = Math.random() * S, py = Math.random() * S, v = Math.random(); x.fillStyle = `rgba(${v < 0.5 ? '40,32,22' : '150,128,96'},0.12)`; x.fillRect(px, py, 1.5, 1.5); xb.fillStyle = `rgba(${v < 0.5 ? 0 : 255},${v < 0.5 ? 0 : 255},${v < 0.5 ? 0 : 255},0.25)`; xb.fillRect(px, py, 1, 1); }
+  x.fillStyle = '#3d382f'; x.fillRect(0, 0, S, S); // luva de tecido escuro (não lê como pele) xb.fillStyle = '#808080'; xb.fillRect(0, 0, S, S);
+  for (let i = 0; i < 2200; i++) { const px = Math.random() * S, py = Math.random() * S, v = Math.random(); x.fillStyle = `rgba(${v < 0.5 ? '20,18,14' : '95,88,72'},0.14)`; x.fillRect(px, py, 1.5, 1.5); xb.fillStyle = `rgba(${v < 0.5 ? 0 : 255},${v < 0.5 ? 0 : 255},${v < 0.5 ? 0 : 255},0.25)`; xb.fillRect(px, py, 1, 1); }
   for (let y = 0; y < S; y += 3) { xb.fillStyle = 'rgba(0,0,0,0.12)'; xb.fillRect(0, y, S, 1); }
   GLOVE_MAT = new THREE.MeshStandardMaterial({ map: toTex(cv, true, 3, 3), bumpMap: toTex(cb, false, 3, 3), bumpScale: 0.6, roughness: 0.88, metalness: 0, envMapIntensity: 0.6 });
   return GLOVE_MAT;
@@ -3265,7 +3270,7 @@ class HandRig {
         if (pi >= 0) {
           let a = ang[pi];
           if (f === 't' && pi === 0) { ax.copy(this.fingerDir).applyQuaternion(q); qa.setFromAxisAngle(ax, (this.side === 'L' ? -1 : 1) * (pose.ts || 0) * 0.5); q.premultiply(qa); }
-          ax.copy(C.axis).applyQuaternion(q); qa.setFromAxisAngle(ax, a); q.premultiply(qa);
+          ax.copy(C.axis).applyQuaternion(q); if (ax.lengthSq() > 1e-6 && isFinite(a)) { ax.normalize(); qa.setFromAxisAngle(ax, a); q.premultiply(qa); } // eixo degenerado: não deforma (evita 'barbatana')
         }
         b.quaternion.copy(q).multiply(R.q); prevPosed = b.position;
       }
@@ -3296,7 +3301,9 @@ Object.assign(G, {
   makeGloveHand(side) {
     const a = ASSETS['hand' + side]; if (!a || a.state !== 'ok' || (this.hands && this.hands[side])) return;
     this.hands = this.hands || { L: null, R: null };
-    const h = new HandRig(a.gltf, side); h.root.scale.setScalar(1.06);
+    const h = new HandRig(a.gltf, side); h.root.scale.setScalar(1);
+    { const bb = new THREE.Box3().setFromObject(h.holder), sz = bb.getSize(new THREE.Vector3()), L = Math.max(sz.x, sz.y, sz.z); // palma+dedos limitados a 18–20 cm
+      if (L > 1e-3) h.root.scale.setScalar(clamp(0.19 / L, 0.5, 1.2)); }
     // punho da luva + manga do uniforme presos ao osso do pulso (seguem a mão sem atravessar)
     const wb = h.bones.wrist;
     if (wb) {
@@ -3316,7 +3323,7 @@ Object.assign(G, {
       // manga do uniforme: punho dobrado, antebraço que engrossa e ponta fechada (sem aspecto de cone/tubo)
       const sleeve = new THREE.Mesh(lathe([[0.029, -0.045], [0.033, -0.04], [0.034, -0.03], [0.032, -0.024], [0.035, -0.01], [0.038, 0.02], [0.039, 0.04], [0.026, 0.046], [0.0, 0.047]]), this.sleeveMat); // ~9 cm: não cobre a mão na visada
       sleeve.geometry.translate(0, 0.155, 0); sleeve.quaternion.copy(qArm);
-      h.root.updateMatrixWorld(true); const ws = new THREE.Vector3(); wb.getWorldScale(ws); const inv = 1.06 / Math.max(1e-4, ws.x);
+      h.root.updateMatrixWorld(true); const ws = new THREE.Vector3(); wb.getWorldScale(ws); const inv = h.root.scale.x / Math.max(1e-4, ws.x);
       [cuff, sleeve].forEach(m => { m.castShadow = true; m.material.side = THREE.DoubleSide; m.scale.setScalar(inv); m.position.multiplyScalar(inv); wb.add(m); });
       h.sleeve = sleeve; h.wb = wb; sleeve.geometry.translate(0, -0.155, 0); sleeve.geometry.translate(0, 0.07, 0);
     }
@@ -3692,7 +3699,8 @@ Object.assign(G, {
     const mlen = MAGT.rifle.len || 0.2, msy = 1;
     for (let i = 0; i < 3; i++) { // carregadores guardados com a base para cima (como na vida real), base + alça de puxar visíveis
       const m = new THREE.Mesh(MAGT.rifle.geo, MAGT.rifle.mat); m.rotation.z = Math.PI;
-      m.position.set(-0.08 + i * 0.08, py + 0.085 - mlen, pz); // base 2,5 cm acima da bolsa, escala 1:1 inner.add(m);
+      m.position.set(-0.08 + i * 0.08, py + 0.085 - mlen, pz); // base 2,5 cm acima da bolsa, escala 1:1
+      inner.add(m);
       const tab = new THREE.Mesh(this.pullTabGeo || (this.pullTabGeo = mergeGeos([tint(Bx(0.024, 0.004, 0.05), 0x2a2a26), tint(xf(Bx(0.012, 0.012, 0.004), 0, 0.007, -0.027), 0x2a2a26)])), MAT.vcol);
       tab.position.set(-0.08 + i * 0.08, py + 0.087, pz); inner.add(tab); m.userData.tab = tab;
       this.pouchMags.push(m); }
@@ -3867,7 +3875,7 @@ Object.assign(G, {
     const toW = this.activeW();
     this.drawFromP = toW.group.position.clone(); this.drawFromQ = toW.group.quaternion.clone(); this.drawT = 0; this.drawing = true;
     this.drawDur = this.P.weapon === 'pistol' ? 0.45 : 0.8;
-    if (this.mode === 'vr') this.drawing = false; // VR: a arma vai direto para a mão que a agarrou (sem interpolação)
+    if (this.mode === 'vr') { this.drawing = false; this.drawFromP = null; } // VR: a arma vai direto para a mão que a agarrou (sem interpolação nem bloqueio do tiro)
     this.holsterFromP = fp; this.holsterFromQ = fq; this.holsterT = 0; this.holsterDur = fromW === this.rifle ? 0.8 : 0.45;
   };
   G.tryFire = function () {
@@ -4025,7 +4033,8 @@ Object.assign(G, {
     if (!this.holoRet) {
       const cv = makeCanvas(256), x = cv.getContext('2d');
       x.shadowColor = 'rgba(255,40,30,0.9)'; x.shadowBlur = 4;
-      x.strokeStyle = 'rgba(255,45,30,1)'; x.lineWidth = 6.5; // traço ~2 MOA: legível na resolução do Quest (o real é ~1 MOA) x.beginPath(); x.arc(128, 128, 110, 0, Math.PI * 2); x.stroke();
+      x.strokeStyle = 'rgba(255,45,30,1)'; x.lineWidth = 6.5; // traço ~2 MOA: legível na resolução do Quest (o real é ~1 MOA)
+      x.beginPath(); x.arc(128, 128, 110, 0, Math.PI * 2); x.stroke(); // anel de 68 MOA
       x.fillStyle = 'rgba(255,80,60,1)'; x.beginPath(); x.arc(128, 128, 3.2, 0, Math.PI * 2); x.fill(); // ponto de 1 MOA ampliado p/ ~2 MOA (subpixel no headset)
       const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false }));
@@ -4121,6 +4130,46 @@ Object.assign(G, {
     return r;
   };
 }
+/* ======================= v5 ======================= */
+/* tap-rack de verdade: a pane tipo 1 só sai com tapa na base do carregador seguido de manobra (até 3 s) */
+{
+  const _pA = new THREE.Vector3(), _pB = new THREE.Vector3(), _pC = new THREE.Vector3();
+  Object.assign(G, {
+    updateSlap(dt, vr) {
+      this.slapAge = (this.slapAge === undefined ? 99 : this.slapAge) + Math.min(dt, 0.05);
+      const P = this.P; if (!vr || !P || P.supHeld) { this.slapPrev = null; return; }
+      const ws = P.ws[P.weapon], mag = ws && ws.mag, sh = this.supHand(), W = this.activeW();
+      if (!mag || !mag.seated || !sh.valid) { this.slapPrev = null; return; }
+      const bot = this.magBottomWorld(mag, _pA), axis = this.magAxisL(W, _pB).applyQuaternion(W.group.quaternion);
+      const along = _pC.subVectors(sh.pos, bot).dot(axis);
+      if (sh.pos.distanceTo(bot) < 0.09) {
+        if (this.slapPrev !== null && along - this.slapPrev > 0.009 && this.slapAge > 0.3) { this.slapAge = 0; SFX.tink(bot, true); this.haptic('sup', 0.6, 25); this.haptic('gun', 0.4, 20); }
+        this.slapPrev = along;
+      } else this.slapPrev = null;
+    }
+  });
+  const _bf5 = G.boltForward;
+  G.boltForward = function (kind) {
+    const k = kind || this.P.weapon, ws = this.P.ws[k];
+    if (ws.jam && ws.jamType === 'feed' && this.mode === 'vr' && !(this.slapAge < 3)) {
+      ws.boltLocked = false; SFX.boltFwd((k === 'rifle' ? this.rifle : this.pistol).group.position);
+      this.msg('Ainda em pane: primeiro bata na base do carregador (tap), depois puxe a alavanca (rack)', 1.8); return false;
+    }
+    if (ws.jam && ws.jamType === 'feed') this.slapAge = 99;
+    return _bf5.call(this, kind);
+  };
+  const _t6 = G.tick; G.tick = function (dt, t) { _t6.call(this, dt, t); if (this.P && this.started) this.updateSlap(dt, this.renderer.xr.isPresenting); };
+}
+/* mão de apoio: manga escondida na visada (não cobre o guarda-mão) */
+{
+  const _gh5 = G.updateGloveHands;
+  G.updateGloveHands = function (vr, dt) {
+    _gh5.call(this, vr, dt);
+    if (!this.hands) return;
+    const sup = this.hands[this.S.leftHanded ? 'R' : 'L'];
+    if (sup && sup.sleeve) sup.sleeve.visible = !(this.P && this.P.supHeld === 'handguard' && (this.stockW || 0) > 0.4);
+  };
+}
 })();
 </script>
 </head>
@@ -4174,14 +4223,14 @@ Object.assign(G, {
   </div>
 
   <a-scene milsim-game
-    renderer="antialias: auto; stencil: true; colorManagement: true; physicallyCorrectLights: true; highRefreshRate: true; foveationLevel: 1; toneMapping: ACESFilmic; exposure: 1.0"
+    renderer="antialias: false; stencil: true; colorManagement: true; physicallyCorrectLights: true; highRefreshRate: true; foveationLevel: 1; toneMapping: ACESFilmic; exposure: 1.0"
     shadow="type: pcf; autoUpdate: true"
     fog="type: exponential; color: #d9c49c; density: 0.02"
     background="color: #d9c49c"
     vr-mode-ui="enabled: true"
     device-orientation-permission-ui="enabled: false"
     loading-screen="dotsColor: #f0c766; backgroundColor: #2a2218">
-    <a-assets timeout="3500">
+    <a-assets timeout="20000">
       <!-- modelos .glb públicos (carregamento assíncrono; fallback procedural automático em JS) -->
       <a-asset-item id="soldierGLB" src="assets/Soldier.glb" response-type="arraybuffer"></a-asset-item>
       <a-asset-item id="m4GLB" src="assets/m4a1.glb" response-type="arraybuffer"></a-asset-item>
