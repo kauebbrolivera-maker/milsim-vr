@@ -4836,6 +4836,79 @@ CFG.PLAYER_DMG_K = 0.45; CFG.PLAYER_HEAD_MAX = 45; CFG.ENEMY_SPREAD_K = 1.5;
   const _t14 = G.tick;
   G.tick = function (dt, t) { _t14.call(this, dt, t); if (this.started && this.P) { this.S.autoBoltRelease = false; this.fixMuzzleTip(); this.updateMagAssist(this._dtLast || 0.016, this.renderer.xr.isPresenting); } };
 }
+/* pistola no nível do M4: porta-carregadores próprio no cinto (esquerda, à frente), desgaste PBR na Glock e, em VR, sem "carregar pelo botão":
+   a câmara só é alimentada manobrando o ferrolho/corrediça (ou pela retém com o ferrolho travado aberto) */
+SLOTS.pistolPouch = new THREE.Vector3(-0.125, -0.655, -0.165);
+{
+  const _sw = G.slotWorld;
+  G.slotWorld = function (name, out) { if (name === 'pouch' && this.P && this.P.weapon === 'pistol') name = 'pistolPouch'; return _sw.call(this, name, out); };
+  const _bb = G.boltButton;
+  G.boltButton = function (kind) {
+    const k = kind || this.P.weapon, ws = this.P.ws[k];
+    if (this.mode === 'vr' && !ws.boltLocked && !ws.chambered && !ws.grabbed) { SFX.click(); this.msg(k === 'pistol' ? 'Puxe a corrediça para carregar' : 'Puxe a alavanca de manejo para carregar', 1.2); return false; }
+    return _bb.apply(this, arguments);
+  };
+  const _st = G.setup;
+  G.setup = function () {
+    const r = _st.apply(this, arguments);
+    // porta-carregador da pistola no cinto + pente aparente
+    const pm = new THREE.Mesh(mergeGeos([tint(xf(Bx(0.042, 0.085, 0.03), -0.125, -0.715, -0.158), 0x4f4632), tint(xf(Bx(0.046, 0.012, 0.034), -0.125, -0.676, -0.158), 0x3a3226)]), MAT.fabric);
+    this.vestInner.add(pm); this.pistolPouchMesh = pm;
+    this.ensurePistolPouchMag = () => {
+      if (this.pistolPouchMag || !MAGT.pistol) return;
+      const m = new THREE.Mesh(MAGT.pistol.geo, MAGT.pistol.mat); m.position.set(-0.125, -0.655, -0.158); m.scale.setScalar(0.95); this.vestInner.add(m); this.pistolPouchMag = m;
+    };
+    return r;
+  };
+  const _t15 = G.tick;
+  G.tick = function (dt, t) {
+    _t15.call(this, dt, t);
+    if (!this.started || !this.P) return;
+    if (this.ensurePistolPouchMag) { this.ensurePistolPouchMag(); if (this.pistolPouchMag) this.pistolPouchMag.visible = this.P.pouch.pistol.length > 0; }
+    const Wp = this.pistol; if (Wp && Wp.glb && !Wp.wearDone) { Wp.wearDone = true; Wp.glb.traverse(o => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial) wearRifleMaterial(o.material); }); }
+  };
+}
+/* gráficos: luz de "dia assado" (hemisfério quente + sol), sombra do sol que acompanha o jogador (mais nítida com o mesmo mapa 1024, borda suave PCF),
+   adobe com AO de contato na base, poeira/areia subindo pela parede e variação de tom em grande escala; chão com manchas de variação */
+{
+  const _sun = new THREE.Vector3(), _st = G.setup;
+  function adobeDetail(mat) {
+    if (!mat || mat.userData.det) return; mat.userData.det = true;
+    const prev = mat.onBeforeCompile;
+    mat.onBeforeCompile = (sh, r) => {
+      if (prev) prev(sh, r);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vAdW;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvAdW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vAdW;\nfloat adH(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\nfloat adN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(adH(i), adH(i + vec2(1, 0)), f.x), mix(adH(i + vec2(0, 1)), adH(i + vec2(1, 1)), f.x), f.y); }')
+        .replace('#include <lights_physical_fragment>', [
+          'float adAO = mix(0.6, 1.0, smoothstep(0.0, 0.6, vAdW.y));',
+          'float adDust = (1.0 - smoothstep(0.05, 0.9, vAdW.y)) * (0.55 + 0.45 * adN(vAdW.xz * 2.3 + vAdW.y));',
+          'float adBig = adN(vAdW.xz * 0.08 + vAdW.y * 0.05);',
+          'diffuseColor.rgb *= adAO * (0.9 + 0.2 * adBig);',
+          'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.66, 0.48), adDust * 0.35);',
+          'roughnessFactor = min(1.0, roughnessFactor + adDust * 0.1);',
+          '#include <lights_physical_fragment>'].join('\n'));
+    };
+    const key = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : null;
+    mat.customProgramCacheKey = () => (key ? key() : '') + '|adobeDet1'; mat.needsUpdate = true;
+  }
+  G.setup = function () {
+    const r = _st.apply(this, arguments);
+    this.scene.traverse(o => {
+      if (o.isHemisphereLight) { o.color.setHex(0xd6e4f0); o.groundColor.setHex(0xb08a5c); o.intensity = 0.72; this.hemi = o; }
+      if (o.isDirectionalLight && o.castShadow) { this.sunLight = o; o.intensity = 2.85; o.color.setHex(0xffdcae); o.shadow.radius = 2.5; o.shadow.normalBias = 0.03; const sc = o.shadow.camera; sc.left = -15; sc.right = 15; sc.top = 15; sc.bottom = -15; sc.updateProjectionMatrix(); this.sunOff = o.position.clone().sub(o.target.position); }
+    });
+    if (MAT.adobe) adobeDetail(MAT.adobe);
+    return r;
+  };
+  const _t16 = G.tick;
+  G.tick = function (dt, t) {
+    _t16.call(this, dt, t);
+    const s = this.sunLight; if (!s || !this.sunOff) return;
+    // centro da sombra no jogador, ajustado à grade de texels (sem tremular ao andar)
+    const step = 30 / CFG.SHADOW_MAP * 4, x = Math.round(this.headPos.x / step) * step, z = Math.round(this.headPos.z / step) * step;
+    if (s.target.position.x !== x || s.target.position.z !== z) { s.target.position.set(x, 0, z); s.position.copy(s.target.position).add(this.sunOff); s.target.updateMatrixWorld(); this.renderer.shadowMap.needsUpdate = true; }
+  };
+}
 })();
 </script>
 </head>
