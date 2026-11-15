@@ -1564,7 +1564,7 @@ class Enemy {
       const fwd = _v4.set(Math.sin(this.yaw), 0, Math.cos(this.yaw)), ly = point.y - this.root.position.y - this.body.position.y;
       plate = Math.abs(d.dot(fwd)) > 0.45 && ly > 1.02 && ly < 1.46;
     }
-    if (plate) { dmg = Math.round(b.C.plate * (0.6 + 0.4 * vk)); G.fx.puff(point, 'spark'); SFX.impactHard(point); this.stagger = 0.35; }
+    if (plate) { dmg = Math.round(b.C.plate * (0.6 + 0.4 * vk)); G.fx.puff(point, 'spark'); SFX.impactHard(point); SFX.tink(point, true); this.stagger = 0.35; }
     else dmg = Math.round(b.C.dmg[part] * clamp(0.45 + 0.55 * vk, 0.3, 1));
     this.damage(part, dmg, point, plate);
     return { plate, dmg };
@@ -1673,7 +1673,7 @@ const FX = {
       s.visible = false; s.userData = { life: 0, max: 1, vel: new THREE.Vector3(), s0: 0.2, s1: 0.6, op: 0.8, grav: 0 }; scene.add(s); this.sprites.push(s);
     }
     const tg = new THREE.BoxGeometry(0.012, 0.012, 1); tg.translate(0, 0, 0.5);
-    for (let i = 0; i < 10; i++) { const m = new THREE.Mesh(tg, MAT.tracer.clone()); m.visible = false; m.frustumCulled = false; m.userData = { life: 0 }; scene.add(m); this.tracers.push(m); }
+    // (pool antigo de traçantes removido: os traçantes são desenhados pela balística em um InstancedMesh)
     for (let i = 0; i < 6; i++) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: MAT.flash.map, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }));
       s.visible = false; s.scale.setScalar(0.35); s.userData = { life: 0 }; scene.add(s); this.flashes.push(s);
@@ -1739,7 +1739,7 @@ const FX = {
       const t = u.life / u.max; u.vel.y -= u.grav * dt; s.position.addScaledVector(u.vel, dt);
       s.scale.setScalar(lerp(u.s0, u.s1, t)); s.material.opacity = u.op * (1 - t);
     }
-    for (const m of this.tracers) { if (!m.visible) continue; m.userData.life -= dt; m.material.opacity = Math.max(0, m.userData.life / 0.07) * 0.85; if (m.userData.life <= 0) m.visible = false; }
+    if (this.tracers.length) for (const m of this.tracers) { if (!m.visible) continue; m.userData.life -= dt; m.material.opacity = Math.max(0, m.userData.life / 0.07) * 0.85; if (m.userData.life <= 0) m.visible = false; }
     for (const f of this.flashes) { if (!f.visible) continue; f.userData.life -= dt; if (f.userData.life <= 0) f.visible = false; }
     for (const b of this.booms) {
       if (!b.active) continue; b.life += dt; const L = b.life;
@@ -2210,7 +2210,7 @@ const G = {
   tryFire() {
     const P = this.P; if (!P.alive) return false;
     const k = P.weapon, ws = P.ws[k], W = this.activeW();
-    if (ws.mode === 'safe') { SFX.click(); this.haptic('gun', 0.15, 10); this.triggerLock = true; this.lastShot = { type: 'safe' }; this.msg(this.mode === 'vr' ? 'SEGURANÇA (S) — empurre o seletor: clique no analógico da mão da arma ou agarre-o com a mão de apoio' : 'SEGURANÇA (S) — tecla X move o seletor', 1.6); return false; }
+    if (ws.mode === 'safe') { SFX.click(); this.haptic('gun', 0.15, 10); this.triggerLock = true; this.lastShot = { type: 'safe' }; this.msg(this.mode === 'vr' ? 'Seletor em S (segurança) — empurre a alavanca para baixo com o dedo da mão de apoio (1 → A) ou clique no analógico da mão da arma' : 'SEGURANÇA (S) — tecla X move o seletor', 1.6); return false; }
     if (!ws.chambered || ws.boltLocked || ws.grabbed) {
       SFX.click(); this.haptic('gun', 0.3, 15); this.triggerLock = true; this.lastShot = { type: 'click' }; this.hudDirty = true; return false;
     }
@@ -3438,7 +3438,7 @@ Object.assign(G, {
     } else dmg = C.dmg.legs * vk;
     dmg = Math.max(1, Math.round(dmg));
     this.lastPlayerHit = { zone: z.zone, plate, helmet, dmg };
-    if (plate || helmet) SFX.tink(pt, true); else SFX.flesh(pt, z.zone === 'head');
+    if (plate || helmet) { SFX.tink(pt, true); this.fx.puff(pt, 'spark'); } else SFX.flesh(pt, z.zone === 'head');
     if (z.zone === 'legs') this.legHitT = 4; // ferido na perna: anda mais devagar por alguns segundos
     this.damagePlayer(dmg, pt);
     this.vig = Math.max(this.vig, plate ? 0.45 : 1);
@@ -3656,6 +3656,10 @@ Object.assign(G, {
     const B = (w, h, d, x, y, z, rx, col) => parts.push(tint(xf(Bx(w, h, d), x, y, z, rx || 0), col));
     // placa frontal levemente curva (3 segmentos) e placa traseira
     B(0.2, 0.3, 0.035, 0, -0.5, -0.135, 0, COY);
+    // placa balística visível (15×20 cm, cantos superiores chanfrados) na bolsa frontal
+    B(0.15, 0.17, 0.012, 0, -0.415, -0.158, 0, 0x6f5e45); B(0.11, 0.03, 0.012, 0, -0.315, -0.158, 0, 0x6f5e45);
+    for (const sx of [-1, 1]) { const c = Bx(0.03, 0.03, 0.012); c.rotateZ(Math.PI / 4); c.translate(sx * 0.055, -0.322, -0.158); parts.push(tint(c, 0x6f5e45)); }
+    B(0.152, 0.006, 0.014, 0, -0.33, -0.16, 0, DK); B(0.152, 0.006, 0.014, 0, -0.5, -0.16, 0, DK);
     for (const sx of [-1, 1]) { const g = Bx(0.07, 0.3, 0.035); g.rotateY(sx * 0.35); g.translate(sx * 0.127, -0.5, -0.12); parts.push(tint(g, COY)); }
     B(0.3, 0.32, 0.03, 0, -0.5, 0.14, 0, COY);
     for (const sx of [-1, 1]) { // cummerbund e ombreiras
@@ -4075,6 +4079,43 @@ Object.assign(G, {
     if (ws.jam && ws.jamType === 'stovepipe') this.ejectCasing(k === 'rifle' ? this.rifle : this.pistol, false);
     const wasJam = ws.jam, r = _bf.call(this, kind);
     if (wasJam) { this.showStovepipe(k, false); ws.jamType = null; }
+    return r;
+  };
+}
+/* ---------- seletor físico de 3 posições (S / 1 / A): empurrado pelo dedo da mão de apoio, sem dar a volta ---------- */
+{
+  const _sL = new THREE.Vector3(), _sP = new THREE.Vector3();
+  Object.assign(G, {
+    setSelector(k, mode) {
+      const ws = this.P.ws[k]; if (ws.mode === mode) return;
+      ws.mode = mode; SFX.click(); this.haptic('gun', 0.35, 14); this.haptic('sup', 0.25, 10); this.hudDirty = true;
+      this.msg({ safe: 'Seletor: S (segurança)', semi: 'Seletor: 1 (semiautomático)', auto: 'Seletor: A (automático)' }[mode], 0.9);
+    },
+    updateSelectorFinger(vr) {
+      if (!vr || this.P.weapon !== 'rifle' || !this.P || this.P.supHeld) { this.selTouch = null; return; }
+      const sh = this.supHand(), W = this.rifle; if (!sh.valid || !W.A.selector) { this.selTouch = null; return; }
+      W.group.localToWorld(_sP.copy(W.A.selector));
+      if (sh.pos.distanceTo(_sP) > 0.045) { this.selTouch = null; return; }
+      W.group.worldToLocal(_sL.copy(sh.pos));
+      if (!this.selTouch) { this.selTouch = { y0: _sL.y }; return; }
+      const dy = _sL.y - this.selTouch.y0, order = ['safe', 'semi', 'auto'], ws = this.P.ws.rifle, i = order.indexOf(ws.mode);
+      if (dy < -0.015 && i < 2) { this.setSelector('rifle', order[i + 1]); this.selTouch.y0 = _sL.y; }   // dedo empurra a alavanca para baixo → disparo
+      else if (dy > 0.015 && i > 0) { this.setSelector('rifle', order[i - 1]); this.selTouch.y0 = _sL.y; } // para cima → segurança
+    }
+  });
+  const _t5 = G.tick; G.tick = function (dt, t) { _t5.call(this, dt, t); if (this.P && this.started) this.updateSelectorFinger(this.renderer.xr.isPresenting); };
+}
+/* ---------- Quest: sem MSAA no framebuffer do WebXR (custo alto no Quest 3S; foveação + resolução nativa bastam) ---------- */
+{
+  const _st6 = G.setup;
+  G.setup = function () {
+    const r = _st6.apply(this, arguments);
+    try {
+      if (/OculusBrowser|Quest/i.test(navigator.userAgent)) {
+        const gl = this.renderer.getContext(), orig = gl.getContextAttributes.bind(gl);
+        gl.getContextAttributes = () => Object.assign({}, orig(), { antialias: false });
+      }
+    } catch (e) { console.warn('[MilSim] antialias XR', e); }
     return r;
   };
 }
