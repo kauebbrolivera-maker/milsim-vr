@@ -1,0 +1,120 @@
+{
+ "stills": [
+  {
+   "start": 13.267,
+   "end": 15.267,
+   "label": "Retículo vermelho contra o céu claro",
+   "frame": 398
+  },
+  {
+   "start": 18.1,
+   "end": 20.1,
+   "label": "Visada: punho/manga da mão de apoio ocultos",
+   "frame": 543
+  },
+  {
+   "start": 20.867,
+   "end": 22.867,
+   "label": "Impacto na placa: faíscas",
+   "frame": 626
+  },
+  {
+   "start": 44.033,
+   "end": 46.033,
+   "label": "Pane 1: tapa na base do carregador",
+   "frame": 1321
+  },
+  {
+   "start": 48.3,
+   "end": 50.3,
+   "label": "Pane 1: alavanca puxada (rack)",
+   "frame": 1449
+  },
+  {
+   "start": 51.4,
+   "end": 53.4,
+   "label": "Pane 2: estojo preso na janela (chaminé)",
+   "frame": 1542
+  },
+  {
+   "start": 55.767,
+   "end": 57.767,
+   "label": "Pane 2: alavanca limpou o estojo",
+   "frame": 1673
+  },
+  {
+   "start": 58.633,
+   "end": 60.633,
+   "label": "Pane 3: carregador fora",
+   "frame": 1759
+  },
+  {
+   "start": 62.367,
+   "end": 64.367,
+   "label": "Pane 3: 1ª manobra",
+   "frame": 1871
+  },
+  {
+   "start": 66.133,
+   "end": 68.133,
+   "label": "Pane 3: 2ª manobra",
+   "frame": 1984
+  },
+  {
+   "start": 71.333,
+   "end": 73.333,
+   "label": "Seletor: alavanca em 1 (semi)",
+   "frame": 2140
+  },
+  {
+   "start": 74.033,
+   "end": 76.033,
+   "label": "Seletor: alavanca em A (auto)",
+   "frame": 2221
+  }
+ ],
+ "captions": [
+  {
+   "t": 0.0,
+   "label": "Coronha virtual: fuzil apoiado no ombro, mira holográfica zerada a 50 m"
+  },
+  {
+   "t": 6.133,
+   "label": "Mira holográfica: anel 68 MOA + ponto, visto pelo olho dominante"
+  },
+  {
+   "t": 9.133,
+   "label": "Retículo em close: anel de 68 MOA + ponto, mira firme no céu"
+  },
+  {
+   "t": 25.567,
+   "label": "Recarga completa: ferrolho travado aberto → soltar pente → bolsa → inserir → alavanca"
+  },
+  {
+   "t": 42.667,
+   "label": "Pane! Tap-rack: bata no pente e puxe a alavanca"
+  },
+  {
+   "t": 68.367,
+   "label": "Seletor de tiro: o dedo empurra a alavanca S → 1 → A"
+  },
+  {
+   "t": 80.733,
+   "label": "Soltando o guarda-mão: a mão volta ao controle sem deformar"
+  },
+  {
+   "t": 82.333,
+   "label": "Pistola Glock: grip no coldre do quadril para sacar"
+  },
+  {
+   "t": 88.2,
+   "label": "Granada M67: pegar no ombro, puxar o pino (Y), arremessar"
+  },
+  {
+   "t": 96.3,
+   "label": "Vilarejo de adobe: casas entráveis, portas e janelas"
+  }
+ ],
+ "frames": 3284,
+ "dur": 109.46666666666667
+}
