@@ -1688,8 +1688,8 @@ class Enemy {
 const FX = {
   sprites: [], tracers: [], flashes: [], booms: [],
   init(scene) {
-    this.initCasings(scene);
-    for (let i = 0; i < 48; i++) {
+    this.initCasings(scene); this.initSparks(scene);
+    for (let i = 0; i < 30; i++) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: MAT.puff, transparent: true, depthWrite: false, fog: true }));
       s.visible = false; s.userData = { life: 0, max: 1, vel: new THREE.Vector3(), s0: 0.2, s1: 0.6, op: 0.8, grav: 0 }; scene.add(s); this.sprites.push(s);
     }
@@ -1725,14 +1725,52 @@ const FX = {
       const col = type === 'dust' ? 0xcdb184 : type === 'concrete' ? 0xb0aa9e : 0x8c6c48;
       for (let i = 0; i < 3; i++) { v.set(rand(-0.4, 0.4), rand(0.4, 1.2), rand(-0.4, 0.4)); this.spawnSprite(pos, col, 0.12, type === 'dust' ? 0.9 : 0.6, rand(0.6, 1.0), v, 0.75, false, -0.3); }
     } else if (type === 'spark') {
-      // placa/metal: núcleo de clarão + 13 faíscas laranja brilhantes (0,35–0,5 s)
-      v.set(0, 0, 0); this.spawnSprite(pos, 0xffd080, 0.22, 0.05, 0.14, v, 1, true, 0);
-      for (let i = 0; i < 13; i++) { v.set(rand(-2.6, 2.6), rand(0.4, 2.8), rand(-2.6, 2.6)); this.spawnSprite(pos, 0xff8c1a, 0.075, 0.02, rand(0.35, 0.5), v, 1, true, 6); }
+      this.sparkBurst(pos, null);
     } else if (type === 'blood') {
       for (let i = 0; i < 3; i++) { v.set(rand(-0.6, 0.6), rand(0, 0.8), rand(-0.6, 0.6)); this.spawnSprite(pos, 0x6e0a0a, 0.12, 0.4, 0.45, v, 0.9, false, 3); }
     } else if (type === 'smoke') {
       v.set(rand(-0.5, 0.5), rand(0.6, 1.4), rand(-0.5, 0.5)); this.spawnSprite(pos, 0x6c6257, 1.0, 4.5, rand(2, 3), v, 0.6, false, -0.1);
     }
+  },
+  // faíscas de metal/placa: pool próprio (textura de ponto quente, aditivo, sem neblina nem tone mapping) + clarão curto
+  initSparks(scene) {
+    const cv = makeCanvas(64), x = cv.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,230,1)'); gr.addColorStop(0.25, 'rgba(255,220,90,1)'); gr.addColorStop(0.55, 'rgba(255,130,20,0.85)'); gr.addColorStop(1, 'rgba(255,90,0,0)');
+    x.fillStyle = gr; x.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    this.sparks = [];
+    for (let i = 0; i < 20; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0xffb030, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, toneMapped: false }));
+      sp.visible = false; sp.userData = { life: 0, max: 0.4, vel: new THREE.Vector3(), s0: 0.1 }; scene.add(sp); this.sparks.push(sp);
+    }
+    this.sparkFlash = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0xffe0a0, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, toneMapped: false }));
+    this.sparkFlash.visible = false; this.sparkFlash.userData = { life: 0 }; scene.add(this.sparkFlash);
+  },
+  sparkBurst(pos, normal) {
+    if (!this.sparks) return;
+    // nasce 4 cm à frente da superfície (ao longo da normal ou na direção do observador) para não ficar dentro da placa
+    const n = (this._sn || (this._sn = new THREE.Vector3()));
+    if (normal) n.copy(normal); else if (typeof G !== 'undefined' && G.headPos) n.subVectors(G.headPos, pos); else n.set(0, 0, 1);
+    n.normalize();
+    const base = new THREE.Vector3().copy(pos).addScaledVector(n, 0.04);
+    this.lastSparkT = typeof G !== 'undefined' ? G.time : 0; this.lastSparkPos = base.clone();
+    this.sparkFlash.visible = true; this.sparkFlash.position.copy(base); this.sparkFlash.scale.setScalar(0.32); this.sparkFlash.userData.life = 0.09; this.sparkFlash.material.opacity = 1;
+    for (let i = 0; i < 14; i++) {
+      const sp = this.sparks.find(s => !s.visible) || this.sparks[i % this.sparks.length], u = sp.userData;
+      sp.visible = true; sp.position.copy(base); u.life = 0; u.max = rand(0.35, 0.5); u.s0 = rand(0.07, 0.11);
+      u.vel.set(rand(-1, 1), rand(-0.3, 1), rand(-1, 1)).normalize().multiplyScalar(rand(1.2, 3.2)).addScaledVector(n, 1.4);
+      sp.scale.setScalar(u.s0); sp.material.opacity = 1;
+    }
+  },
+  updateSparks(dt) {
+    if (!this.sparks) return;
+    for (const sp of this.sparks) {
+      if (!sp.visible) continue; const u = sp.userData; u.life += dt;
+      if (u.life >= u.max) { sp.visible = false; continue; }
+      const t = u.life / u.max; u.vel.y -= 7 * dt; u.vel.multiplyScalar(1 - 1.5 * dt); sp.position.addScaledVector(u.vel, dt);
+      sp.scale.setScalar(u.s0 * (1 - 0.6 * t)); sp.material.opacity = 1 - t * t;
+    }
+    const f = this.sparkFlash; if (f && f.visible) { f.userData.life -= dt; f.material.opacity = Math.max(0, f.userData.life / 0.09); if (f.userData.life <= 0) f.visible = false; }
   },
   flashAt(pos) {
     const f = this.flashes.find(s => !s.visible) || this.flashes[0];
@@ -1755,7 +1793,7 @@ const FX = {
     for (let i = 0; i < 6; i++) { _v1.copy(pos); _v1.x += rand(-1, 1); _v1.z += rand(-1, 1); _v1.y += rand(0.3, 1.2); this.puff(_v1, 'smoke'); }
   },
   update(dt) {
-    this.updateCasings(dt);
+    this.updateCasings(dt); this.updateSparks(dt);
     for (const s of this.sprites) {
       if (!s.visible) continue; const u = s.userData; u.life += dt;
       if (u.life >= u.max) { s.visible = false; continue; }
