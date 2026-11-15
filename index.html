@@ -4521,6 +4521,138 @@ CFG.PLAYER_DMG_K = 0.45; CFG.PLAYER_HEAD_MAX = 45; CFG.ENEMY_SPREAD_K = 1.5;
   const _rQ8 = new THREE.Quaternion();
   const _t11 = G.tick; G.tick = function (dt, t) { _t11.call(this, dt, t); if (this.P && this.started) this.updateMagStrip(this.renderer.xr.isPresenting, Math.min(dt, 0.05)); };
 }
+/* mãos físicas (estilo Boneworks): a mão visível segue o controle mas é barrada pelos colisores (caixas do mundo, chão e a arma),
+   desliza pela superfície, fecha os dedos ao tocar e empurra objetos soltos (pentes, granadas, fuzil pendurado na bandoleira).
+   Solver próprio esfera×caixa / esfera×cápsula, sem alocação por quadro. Se a mão visível ficar longe do controle, aparece uma mão-fantasma. */
+{
+  const _c = new THREE.Vector3(), _q = new THREE.Vector3(), _d = new THREE.Vector3(), _st = new THREE.Vector3(), _o = new THREE.Vector3(), _hv = new THREE.Vector3();
+  const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _ab = new THREE.Vector3(), _tq = new THREE.Quaternion(), _sw = new THREE.Quaternion(), _pv = new THREE.Vector3();
+  const _r = new THREE.Vector3(), _w = new THREE.Vector3(), _n = new THREE.Vector3();
+  const near = [];
+  CFG.PHYS_HANDS = true;
+  function closestOnSeg(p, a, b, out) { _ab.subVectors(b, a); const t = clamp(_d.subVectors(p, a).dot(_ab) / Math.max(1e-9, _ab.lengthSq()), 0, 1); return out.copy(a).addScaledVector(_ab, t); }
+  function ghostGeo(H) {
+    const fd = H.fingerDir.clone().applyQuaternion(H.invQ).normalize(), qz = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), fd);
+    const parts = [], box = (sx, sy, sz, oy, of, rz) => { const g = new THREE.BoxGeometry(sx, sy, sz); if (rz) g.rotateX(rz); g.translate(0, oy, of); g.applyQuaternion(qz); parts.push(g); };
+    box(0.026, 0.082, 0.09, 0, 0.0);
+    [-0.028, -0.009, 0.01, 0.029].forEach((y, i) => box(0.018, 0.017, 0.07 + (i === 1 || i === 2 ? 0.01 : 0), y, 0.08));
+    box(0.02, 0.02, 0.06, 0.05, 0.005, -0.7);
+    return mergeGeos(parts);
+  }
+  Object.assign(G, {
+    physHandColliders(H, out) { // esferas no espaço da raiz da mão: palma e dedos
+      if (!H.phOff) { const fd = H.fingerDir.clone().applyQuaternion(H.invQ).normalize(); H.phOff = [{ o: new THREE.Vector3(0.006, 0, -0.005).addScaledVector(fd, 0.0), r: 0.036 }, { o: fd.clone().multiplyScalar(0.075), r: 0.022 }]; }
+      return H.phOff;
+    },
+    gatherNearBoxes(p) {
+      near.length = 0; const B = World.boxes;
+      for (let i = 0; i < B.length; i++) { const b = B[i]; if (p.x > b.minX - 0.5 && p.x < b.maxX + 0.5 && p.z > b.minZ - 0.5 && p.z < b.maxZ + 0.5 && p.y > b.y0 - 0.5 && p.y < b.h + 0.5) near.push(b); }
+      if (this.testBoxes) for (const b of this.testBoxes) near.push(b);
+      return near;
+    },
+    // empurra a mão (pp) para fora de tudo que é sólido; devolve a normal média do contato (comprimento 0 = sem contato)
+    resolveHand(H, pp, q, nrm) {
+      nrm.set(0, 0, 0); const offs = this.physHandColliders(H);
+      const W = this.activeW(), wActive = W === this.rifle && this.P.weapon === 'rifle';
+      for (let it = 0; it < 2; it++) for (const s of offs) {
+        _c.copy(s.o).applyQuaternion(q).add(pp); const r = s.r;
+        for (let i = 0; i < near.length; i++) {
+          const b = near[i]; _q.set(clamp(_c.x, b.minX, b.maxX), clamp(_c.y, b.y0, b.h), clamp(_c.z, b.minZ, b.maxZ));
+          _d.subVectors(_c, _q); const dl = _d.length();
+          if (dl >= r) continue;
+          if (dl > 1e-6) _d.multiplyScalar((r - dl) / dl);
+          else { // centro dentro da caixa: sai pela face mais próxima
+            const m = [_c.x - b.minX, b.maxX - _c.x, _c.y - b.y0, b.h - _c.y, _c.z - b.minZ, b.maxZ - _c.z], k = m.indexOf(Math.min(...m));
+            _d.set(0, 0, 0).setComponent(k >> 1, (k & 1 ? 1 : -1) * (m[k] + r));
+          }
+          pp.add(_d); _c.add(_d); nrm.add(_d);
+        }
+        if (_c.y < r) { const dy = r - _c.y; pp.y += dy; _c.y += dy; nrm.y += dy; }
+        // a mão livre não atravessa o fuzil empunhado (cápsula do receptor/guarda-mão)
+        if (wActive && H.side !== this.gunSide()) {
+          W.group.localToWorld(_a.set(0, 0.085, 0.16)); W.group.localToWorld(_b.set(0, 0.095, -0.5));
+          closestOnSeg(_c, _a, _b, _q); _d.subVectors(_c, _q); const dl = _d.length(), rr = r + 0.026;
+          if (dl < rr && dl > 1e-6) { _d.multiplyScalar((rr - dl) / dl); pp.add(_d); _c.add(_d); nrm.add(_d); }
+        }
+      }
+      return nrm;
+    },
+    pushLoose(H, pp, q, hv) { // objetos soltos levam o empurrão da mão
+      const offs = this.physHandColliders(H); let hit = false;
+      const push = (p, ro, vel) => {
+        for (const s of offs) {
+          _c.copy(s.o).applyQuaternion(q).add(pp); _d.subVectors(p, _c); const dl = _d.length(), rr = s.r + ro;
+          if (dl >= rr) continue;
+          if (dl < 1e-6) _d.set(0, 1, 0); else _d.divideScalar(dl);
+          p.addScaledVector(_d, rr - dl); const vn = hv.dot(_d);
+          // troca de momento uma vez: a velocidade normal do objeto passa a ~1,2× a da mão (sem acumular a cada quadro)
+          if (vel) { const vc = vel.dot(_d), tgt = Math.max(0.25, vn * 1.2); if (vc < tgt) vel.addScaledVector(_d, tgt - vc); if (vel.length() > 3) vel.setLength(3); }
+          hit = true;
+        }
+      };
+      for (const m of this.mags) if (m.state === 'free') { const p0 = m.proxy.position; const before = p0.y; push(p0, 0.03, m.vel); if (p0.y < before - 0.001) p0.y = before; }
+      for (const g of this.grenades) push(g.m.position, 0.035, g.vel);
+      if (hit) this.pushCount = (this.pushCount || 0) + 1;
+      return hit;
+    },
+    // fuzil pendurado nas costas: pêndulo (vetor de rotação) com mola, empurrado pelas mãos e pelo movimento do corpo
+    updateSlingSwing(dt) {
+      const S = this.sling || (this.sling = { th: new THREE.Vector3(), om: new THREE.Vector3(), lastV: new THREE.Vector3() });
+      const R = this.rifle, stowed = this.P.weapon !== 'rifle' && !this.holsterFromP && !this.drawFromP;
+      if (!stowed) { S.th.set(0, 0, 0); S.om.set(0, 0, 0); return; }
+      R.group.updateMatrixWorld(true); _pv.set(0, 0.22, 0).applyQuaternion(this.vest.quaternion).add(R.group.position);
+      // empurrões das mãos livres na cápsula do fuzil
+      for (const side of ['L', 'R']) {
+        const H = this.hands && this.hands[side]; if (!H || !H.root.visible || !H.pp || !H.phv) continue;
+        R.group.localToWorld(_a.set(0, 0.08, 0.26)); R.group.localToWorld(_b.set(0, 0.09, -0.55));
+        for (const s of this.physHandColliders(H)) {
+          _c.copy(s.o).applyQuaternion(H.root.quaternion).add(H.pp); closestOnSeg(_c, _a, _b, _q); const dl = _q.distanceTo(_c);
+          if (dl < s.r + 0.035) { _r.subVectors(_q, _pv); const L2 = Math.max(0.01, _r.lengthSq()); _w.crossVectors(_r, H.phv).multiplyScalar(0.3 / L2); S.om.add(_w); S.hits = (S.hits || 0) + 1; }
+        }
+      }
+      // aceleração do corpo
+      if (this.rigVel) { _hv.subVectors(this.rigVel, S.lastV); S.lastV.copy(this.rigVel); _r.set(0, -0.3, 0); S.om.addScaledVector(_w.crossVectors(_r, _hv), -0.6); }
+      S.om.addScaledVector(S.th, -38 * dt).multiplyScalar(Math.exp(-3.2 * dt)); S.th.addScaledVector(S.om, dt);
+      if (S.th.length() > 0.7) S.th.setLength(0.7);
+      S.maxTh = Math.max(S.maxTh || 0, S.th.length());
+      const ang = S.th.length(); if (ang < 1e-5) return;
+      _sw.setFromAxisAngle(_n.copy(S.th).divideScalar(ang), ang);
+      R.group.position.sub(_pv).applyQuaternion(_sw).add(_pv); R.group.quaternion.premultiply(_sw); R.group.updateMatrixWorld(true);
+    },
+    updatePhysHands(vr, dt) {
+      if (!CFG.PHYS_HANDS || !this.hands || !vr) return;
+      const P = this.P, gs = this.gunSide();
+      if (this.rigPrev) { this.rigVel = this.rigVel || new THREE.Vector3(); this.rigVel.subVectors(this.rig.position, this.rigPrev).divideScalar(Math.max(dt, 1e-3)); } else this.rigPrev = new THREE.Vector3();
+      this.rigPrev.copy(this.rig.position);
+      for (const side of ['L', 'R']) {
+        const H = this.hands[side]; if (!H) continue;
+        const free = H.root.visible && side !== gs && !H.wasSnap && !P.supHeld;
+        if (!free) { H.pp = null; H.contact = 0; if (H.ghost) H.ghost.visible = false; continue; }
+        const T = H.sp, q = H.root.quaternion;
+        if (!H.pp || H.pp.distanceTo(T) > 0.7) { H.pp = (H.pp || new THREE.Vector3()).copy(T); H.ppPrev = H.pp.clone(); H.phv = new THREE.Vector3(); }
+        this.gatherNearBoxes(T);
+        _st.subVectors(T, H.pp); const n = clamp(Math.ceil(_st.length() / 0.012), 1, 10); _st.divideScalar(n);
+        let cn = 0; _n.set(0, 0, 0);
+        for (let i = 0; i < n; i++) { H.pp.add(_st); const c = this.resolveHand(H, H.pp, q, _o); if (c.lengthSq() > 0) { cn++; _n.add(c); } }
+        H.phv.subVectors(H.pp, H.ppPrev).divideScalar(Math.max(dt, 1e-3)); H.ppPrev.copy(H.pp);
+        const pushed = this.pushLoose(H, H.pp, q, H.phv);
+        const lag = H.pp.distanceTo(T);
+        H.contactN = cn > 0 ? _n.normalize().clone() : null; H.lag = lag;
+        H.contact += ((cn > 0 || pushed ? 1 : 0) - H.contact) * (1 - Math.exp(-14 * dt));
+        H.root.position.copy(H.pp);
+        if (H.contact > 0.02) { H.cpose = lerpPose(H.cur, HPOSE.fist, clamp(H.contact * (0.25 + lag * 6), 0, 0.55), H.cpose || {}); H.apply(H.cpose); }
+        if (H.sleeve) this.orientSleeve(H, side);
+        // mão-fantasma: posição real do controle quando a mão visível fica presa
+        if (!H.ghost) { H.ghost = new THREE.Mesh(ghostGeo(H), new THREE.MeshBasicMaterial({ color: 0xcfe4ff, transparent: true, opacity: 0.22, depthWrite: false, fog: false })); H.ghost.renderOrder = 5; this.scene.add(H.ghost); }
+        H.ghost.visible = lag > 0.04; if (H.ghost.visible) { H.ghost.position.copy(T); H.ghost.quaternion.copy(q); H.ghost.material.opacity = clamp((lag - 0.04) * 5, 0.1, 0.3); }
+        if (cn > 0 && !H.wasContact) this.haptic(side, 0.25, 15);
+        H.wasContact = cn > 0;
+      }
+      this.updateSlingSwing(dt);
+    }
+  });
+  const _t12 = G.tick; G.tick = function (dt, t) { _t12.call(this, dt, t); if (this.started && this.P) this.updatePhysHands(this.renderer.xr.isPresenting, Math.min(dt || 0.016, 0.05)); };
+}
 })();
 </script>
 </head>
