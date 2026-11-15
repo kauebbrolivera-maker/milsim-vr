@@ -1,0 +1,28 @@
+OPERAÇÃO DUNA — MilSim VR (WebXR / A-Frame 1.5.0)
+==================================================
+
+Modelos 3D incluídos neste repositório (pasta assets/)
+------------------------------------------------------
+assets/m4a1.glb
+  "M4A1 Assault Rifle" por nisu — licença CC0 1.0 (domínio público)
+  https://opengameart.org/content/m4a1-assault-rifle
+  Convertido de FBX para glTF (FBX2glTF), texturas PBR reduzidas (1024/512 px)
+  e reempacotadas com gltf-transform. ~9,2 mil triângulos, ~0,5 MB.
+
+assets/pistol.glb
+  "3D Low Poly Pistol With Bullet Shell" por AlexanderZotov — licença CC0 1.0
+  https://opengameart.org/content/3d-low-poly-pistol-with-bullet-shell
+  Convertido de FBX para glTF; materiais recoloridos em tons táticos. ~2,6 mil triângulos.
+
+Modelos carregados de fontes públicas em tempo de execução
+-----------------------------------------------------------
+Soldier.glb (exemplos do three.js, Mixamo) — https://threejs.org/examples/models/gltf/Soldier.glb
+TrafficCone.glb (Khronos glTF Sample Assets, CC0) — https://github.com/KhronosGroup/glTF-Sample-Assets
+Modelos dos controles Meta Quest Touch Plus — fornecidos pelo A-Frame (cdn.aframe.io)
+
+Tudo o mais (mapa, texturas, props, efeitos, sons, IA, mecânicas) é gerado
+proceduralmente no próprio index.html. Se algum .glb não carregar, o jogo usa
+automaticamente a versão procedural equivalente.
+
+Referências de design do sistema de recarga: Onward, Hot Dogs Horseshoes & Hand
+Grenades (H3VR), Pavlov VR, Contractors e Bonelab (apenas inspiração de mecânicas).
