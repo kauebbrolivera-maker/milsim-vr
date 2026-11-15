@@ -50,7 +50,7 @@ const THREE = AFRAME.THREE;
 
 /* ---------------------- Configuração geral ---------------------- */
 const CFG = {
-  MODEL_TIMEOUT_MS: 6000, WEAPON_TIMEOUT_MS: 20000,     // tempo máximo para um .glb externo antes do fallback procedural
+  MODEL_TIMEOUT_MS: 20000, WEAPON_TIMEOUT_MS: 20000,     // tempo máximo para um .glb externo antes do fallback procedural
   SHADOW_MAP: 1024,           // mapa de sombra pequeno (seguro para o XR2 Gen 2)
   TEX: 512,                   // resolução das texturas procedurais
   RIFLE_MAG: 30, PISTOL_MAG: 15,
@@ -618,8 +618,8 @@ function buildMaterials() {
   MAT.vcol = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.65, metalness: 0.2 });
   MAT.rust = new THREE.MeshStandardMaterial({ vertexColors: true, map: MAT.barrel.map, roughnessMap: MAT.barrel.roughnessMap, bumpMap: MAT.barrel.bumpMap, bumpScale: 0.8, roughness: 1, metalness: 0.45 });
   MAT.dot = new THREE.MeshBasicMaterial({ color: 0xff1a1a, toneMapped: false, fog: false });
-  MAT.glass = new THREE.MeshBasicMaterial({ color: 0x8fc2b0, transparent: true, opacity: 0.2, depthWrite: false, fog: false });
-  MAT.glassStencil = new THREE.MeshBasicMaterial({ color: 0x9cc8b8, transparent: true, opacity: 0.16, depthWrite: false, fog: false, side: THREE.DoubleSide,
+  MAT.glass = new THREE.MeshBasicMaterial({ color: 0xc4e0ff, transparent: true, opacity: 0.08, depthWrite: false, fog: false });
+  MAT.glassStencil = new THREE.MeshBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.06, depthWrite: false, fog: false, side: THREE.DoubleSide,
     stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp });
   MAT.optic = new THREE.MeshStandardMaterial({ color: 0x232426, roughness: 0.62, metalness: 0.3, bumpMap: MAT.gunMetal.bumpMap, bumpScale: 0.15 });
   MAT.laser = new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
@@ -929,15 +929,24 @@ function buildPistol() {
       magQ: new THREE.Quaternion().setFromAxisAngle(AX_X, 0.28), magDepth: 0.035, eject: new THREE.Vector3(0.02, 0.08, -0.04) }
   };
 }
+// M67: corpo esférico de 6,4 cm, espoleta M213, colher curva acompanhando o corpo e argola do pino separada
 function grenadeGeo(noPin, noSpoon) {
-  const body = new THREE.SphereGeometry(0.034, 10, 8); body.scale(1, 1.2, 1);
-  const parts = [tint(body, 0x4b5234), tint(xf(Cy(0.012, 0.012, 0.02, 8), 0, 0.045, 0), 0x6b6b5e)];
-  if (!noSpoon) parts.push(tint(xf(Bx(0.012, 0.06, 0.008), 0.026, 0.03, 0), 0x6b6b5e));
+  const body = new THREE.SphereGeometry(0.032, 16, 12); body.scale(1, 1.06, 1);
+  const parts = [tint(body, 0x4b5234), tint(xf(Cy(0.0115, 0.0125, 0.022, 12), 0, 0.042, 0), 0x6b6b5e), tint(xf(Cy(0.008, 0.008, 0.008, 10), 0, 0.056, 0), 0x5f5f53)];
+  if (!noSpoon) parts.push(grenadeSpoonGeo());
   if (!noPin) parts.push(grenadePinGeo());
   return mergeGeos(parts);
 }
-function grenadePinGeo() { return tint(xf(new THREE.TorusGeometry(0.011, 0.0025, 4, 10), -0.012, 0.055, 0), 0xb8b8a8); }
-function grenadeSpoonGeo() { return tint(Bx(0.012, 0.06, 0.008), 0x6b6b5e); }
+function grenadePinGeo() {
+  const ring = new THREE.TorusGeometry(0.012, 0.0015, 5, 14); ring.rotateY(Math.PI / 2);
+  return mergeGeos([tint(xf(ring, -0.03, 0.05, 0.004), 0xc8c8b8), tint(xf(Cy(0.0012, 0.0012, 0.03, 5), -0.008, 0.048, 0, 0, 0, Math.PI / 2), 0xc8c8b8)]);
+}
+function grenadeSpoonGeo() {
+  const c = 0x7a7a6a, parts = [tint(xf(Bx(0.026, 0.0025, 0.012), 0.009, 0.0545, 0), c)];
+  const segs = [[0.019, 0.05, 1.2], [0.03, 0.039, 0.75], [0.0355, 0.021, 0.35], [0.036, 0.002, 0.0]];
+  for (const [x, y, a] of segs) parts.push(tint(xf(Bx(0.0025, 0.019, 0.011), x, y, 0, 0, 0, a), c));
+  return mergeGeos(parts);
+}
 function syringeGeo() {
   return mergeGeos([tint(xf(Cy(0.012, 0.012, 0.11, 10), 0, 0, 0), 0xd8e6ec), tint(xf(Cy(0.008, 0.008, 0.05, 8), 0, 0.075, 0), 0xc22b2b), tint(xf(Bx(0.035, 0.006, 0.012), 0, 0.1, 0), 0xc22b2b), tint(xf(Cy(0.0015, 0.0015, 0.04, 4), 0, -0.075, 0), 0xcfcfcf), tint(xf(Cy(0.0125, 0.0125, 0.03, 10), 0, -0.02, 0), 0x4fa0d8)]);
 }
@@ -1542,7 +1551,7 @@ class Enemy {
     SFX.enemyShot(muzzle, dist); G.fx.flashAt(muzzle);
     if (!G.P.alive || G.invuln > 0) return;
     const dir = _v3.subVectors(tgt, muzzle).normalize();
-    const sig = this.skill * (1 + (G.playerSpeed > 1.2 ? 0.8 : 0) + (3 - this.burst) * 0.35 + (this.hitFlash > 0 ? 1.5 : 0)) * (G.posture === 'prone' ? 1.2 : 1);
+    const sig = this.skill * (1 + (G.playerSpeed > 1.2 ? 0.8 : 0) + (3 - this.burst) * 0.35 + (this.hitFlash > 0 ? 1.5 : 0)) * (G.posture === 2 ? 1.2 : 1);
     const ux = _v4.set(-dir.z, 0, dir.x).normalize(), uy = _v5.crossVectors(ux, dir);
     const gx = (Math.random() + Math.random() + Math.random() - 1.5) * 0.8, gy = (Math.random() + Math.random() + Math.random() - 1.5) * 0.8;
     dir.addScaledVector(ux, gx * sig).addScaledVector(uy, gy * sig).normalize();
@@ -1793,7 +1802,7 @@ const CAL = {
   '762': { v: 715, k: 0.9, dmg: { head: 100, torso: 58, legs: 36 }, plate: 20, pen: 1.1, label: '7,62×39 mm' }
 };
 // custo de penetração e fração de velocidade mantida por material (adobe/concreto/sacos/areia param quase tudo)
-const PEN = { wood: { cost: 0.3, keep: 0.62 }, metal: { cost: 0.55, keep: 0.5 }, adobe: { cost: 1.05, keep: 0.3 }, tin: { cost: 0.15, keep: 0.8 } };
+const PEN = { wood: { cost: 0.3, keep: 0.62 }, metal: { cost: 0.55, keep: 0.5 }, adobe: { cost: 9, keep: 0.1 } /* parede de adobe (30+ cm) para 5,56 */, tin: { cost: 0.15, keep: 0.8 } };
 const _b1 = new THREE.Vector3(), _b2 = new THREE.Vector3(), _b3 = new THREE.Vector3(), _bq = new THREE.Quaternion(), _bm = new THREE.Matrix4(), _bs = new THREE.Vector3();
 const _bd = new THREE.Vector3(), _bx = new THREE.Vector3(), _bRay = new THREE.Raycaster(), _bHit = { dist: 0, surf: null, point: new THREE.Vector3(), normal: new THREE.Vector3() };
 const Ballistics = {
@@ -2201,7 +2210,7 @@ const G = {
   tryFire() {
     const P = this.P; if (!P.alive) return false;
     const k = P.weapon, ws = P.ws[k], W = this.activeW();
-    if (ws.mode === 'safe') { SFX.click(); this.haptic('gun', 0.15, 10); this.triggerLock = true; this.lastShot = { type: 'safe' }; this.msg('Arma TRAVADA (segurança) — clique no analógico', 1.2); return false; }
+    if (ws.mode === 'safe') { SFX.click(); this.haptic('gun', 0.15, 10); this.triggerLock = true; this.lastShot = { type: 'safe' }; this.msg(this.mode === 'vr' ? 'SEGURANÇA (S) — empurre o seletor: clique no analógico da mão da arma ou agarre-o com a mão de apoio' : 'SEGURANÇA (S) — tecla X move o seletor', 1.6); return false; }
     if (!ws.chambered || ws.boltLocked || ws.grabbed) {
       SFX.click(); this.haptic('gun', 0.3, 15); this.triggerLock = true; this.lastShot = { type: 'click' }; this.hudDirty = true; return false;
     }
@@ -2221,7 +2230,13 @@ const G = {
       const Z = k === 'rifle' ? CFG.ZERO : 25, C = CAL[cal], tof = Z / C.v, drop = 0.5 * 9.81 * tof * tof * 1.08;
       const tgt = _v3.set(W.A.sight.x, W.A.sight.y + drop, W.A.sight.z - Z);
       dir.copy(tgt).sub(W.A.muzzle).normalize().applyQuaternion(W.group.quaternion);
-    } else { origin.copy(this.headPos); dir.copy(this.headFwd); }
+    } else { // desktop: projétil também sai da boca do cano, convergindo no ponto sob a mira (com compensação da queda)
+      W.group.localToWorld(origin.copy(W.A.muzzle));
+      const hw = this.rayOut; World.ray(this.headPos, this.headFwd, 250, hw); let d = hw.surf ? hw.dist : 250;
+      this.raycaster.set(this.headPos, this.headFwd); this.raycaster.near = 0; this.raycaster.far = d; const hb = this.raycaster.intersectObjects(this.hitboxes, false); if (hb.length) d = hb[0].distance; d = clamp(d, 2, 250);
+      const tof = d / CAL[cal].v; const tgt = _v3.copy(this.headPos).addScaledVector(this.headFwd, d); tgt.y += 0.5 * 9.81 * tof * tof;
+      dir.copy(tgt).sub(origin).normalize();
+    }
     const spread = (this.twoHand ? CFG.SPREAD_TWO : CFG.SPREAD_ONE) * (k === 'pistol' ? 1.3 : 1) * (1 + this.playerSpeed * 0.4);
     _v1.set(1, 0, 0).applyQuaternion(W.group.quaternion); _v2.set(0, 1, 0).applyQuaternion(W.group.quaternion);
     dir.addScaledVector(_v1, rand(-spread, spread)).addScaledVector(_v2, rand(-spread, spread)).normalize();
@@ -2230,7 +2245,7 @@ const G = {
     Ballistics.fire(origin, dir, cal, 'player', k === 'rifle' && this.shotN % 5 === 0);
     // recuo: subida acumulada no automático (~4–7° numa rajada de 5 com duas mãos), exige correção de punho
     const rc = this.recoil[k];
-    if (k === 'rifle') { rc.z += 0.03; rc.x += (this.twoHand ? 0.03 : 0.058) * (this.rested ? 0.6 : 1) * (1 - 0.15 * (this.stockW || 0)) * (this.posture === 2 ? 0.7 : 1); rc.y = (rc.y || 0) + rand(-0.012, 0.016) * (this.twoHand ? 0.6 : 1.2); }
+    if (k === 'rifle') { rc.z += 0.03; rc.x += (this.twoHand ? 0.025 : 0.058) * (this.rested ? 0.6 : 1) * (1 - 0.15 * (this.stockW || 0)) * (this.posture === 2 ? 0.7 : 1); rc.y = (rc.y || 0) + rand(-0.012, 0.016) * (this.twoHand ? 0.6 : 1.2); }
     else { rc.z += 0.022; rc.x += 0.1; rc.y = (rc.y || 0) + rand(-0.02, 0.02); }
     rc.z = Math.min(rc.z, 0.09); rc.x = Math.min(rc.x, 0.32);
     if (k === 'pistol') { ws.springFrom = 1; ws.springT = 0.06; }
@@ -2568,7 +2583,7 @@ const G = {
     const order = k === 'rifle' ? ['safe', 'semi', 'auto'] : ['safe', 'semi'];
     ws.mode = order[(order.indexOf(ws.mode) + 1) % order.length];
     SFX.click(); this.haptic('gun', 0.25, 12); this.hudDirty = true;
-    this.msg({ safe: 'SEGURANÇA', semi: 'SEMIAUTOMÁTICO', auto: 'AUTOMÁTICO' }[ws.mode], 0.9); return ws.mode;
+    this.msg({ safe: 'Seletor: S (segurança)', semi: 'Seletor: 1 (semiautomático)', auto: 'Seletor: A (automático)' }[ws.mode], 0.9); return ws.mode;
   },
   /* ======================= Zonas de pegada (com destaque) ======================= */
   supZone() {
@@ -2896,7 +2911,7 @@ const G = {
     this.vestInner.scale.set(S.leftHanded ? -1 : 1, Settings.heightK(), 1);
     this.vest.updateMatrixWorld(true);
     const P = this.P;
-    for (let i = 0; i < 3; i++) this.pouchMags[i].visible = i < Math.min(3, P.pouch.rifle.length);
+    for (let i = 0; i < 3; i++) { const on = i < Math.min(3, P.pouch.rifle.length); this.pouchMags[i].visible = on; if (this.pouchMags[i].userData.tab) this.pouchMags[i].userData.tab.visible = on; }
     this.vestGrenade.visible = P.grenades > 0 && P.supHeld !== 'grenade';
     this.vestSyringe.visible = P.syringes > 0 && P.supHeld !== 'syringe';
   },
@@ -2937,12 +2952,13 @@ const G = {
           const sa = this.shoulderAnchor(_v4), butt = _v5.copy(act.A.butt).applyQuaternion(q).add(pos);
           sw = 1 - smoothstep(0.09, 0.2, butt.distanceTo(sa));
           if (sw > 0.001) {
-            if (!act.stockAlign) act.stockAlign = new THREE.Quaternion().setFromUnitVectors(_v3.copy(act.A.handguard).sub(act.A.butt).normalize(), FWD);
-            _m1.lookAt(sa, sh.pos, _v3.set(0, 1, 0).applyQuaternion(q)); _q2.setFromRotationMatrix(_m1).multiply(act.stockAlign);
-            q.slerp(_q2, sw * 0.85);
-            _v3.copy(act.A.butt).applyQuaternion(q).negate().add(sa); pos.lerp(_v3, sw * 0.55);
+            this.stockPose(act, q, pos, sh.pos, sw);
           }
         }
+        // recarga: sem carregador ou indo à bolsa, o fuzil inclina (janela do carregador voltada para a mão de apoio)
+        const needMag = P.weapon === 'rifle' && !twoHand && (!P.ws.rifle.mag || P.supHeld === 'mag' || this.supHand().hover === 'pouch');
+        this.reloadCant = damp(this.reloadCant || 0, needMag ? 1 : 0, 6, dt);
+        if (this.reloadCant > 0.01) q.multiply(_q2.setFromEuler(_e1.set(0.12 * this.reloadCant, 0, (this.S.leftHanded ? 1 : -1) * 0.42 * this.reloadCant, 'YXZ')));
         this.stockW = damp(this.stockW || 0, sw, 14, dt);
         this.lastGunPos = (this.lastGunPos || new THREE.Vector3()).copy(pos);
       } else { // controle sem rastreio por um instante: mantém a última pose em vez de sumir
@@ -2967,7 +2983,8 @@ const G = {
     const amp = (twoHand ? CFG.SWAY_TWO : CFG.SWAY_ONE) * (1 + Math.min(this.playerSpeed, 3.5) * 0.5) * (this.rested ? 0.3 : 1) * (1 - 0.55 * (this.stockW || 0)) * (this.posture === 2 ? 0.5 : this.posture === 1 ? 0.8 : 1), t = this.time;
     _e1.set(Math.sin(t * 1.3) * amp + Math.sin(t * 3.1) * amp * 0.4, Math.cos(t * 1.1) * amp + Math.sin(t * 2.3) * amp * 0.3, 0, 'YXZ');
     q.multiply(_q2.setFromEuler(_e1));
-    for (const k of ['rifle', 'pistol']) { const rc = this.recoil[k]; rc.z = damp(rc.z, 0, 16, dt); rc.x = damp(rc.x, 0, k === 'rifle' ? 5 : 9, dt); rc.y = damp(rc.y || 0, 0, 6, dt); }
+    // em rajada o cano continua subindo (amortecimento fraco); volta à posição ao soltar o gatilho
+    for (const k of ['rifle', 'pistol']) { const rc = this.recoil[k]; rc.z = damp(rc.z, 0, 16, dt); rc.x = damp(rc.x, 0, k === 'rifle' ? (this.time - (this.lastFireT || -9) < 0.15 ? 1.2 : 5) : 9, dt); rc.y = damp(rc.y || 0, 0, 6, dt); }
     const rc = this.recoil[P.weapon];
     act.group.quaternion.copy(q).multiply(_q2.setFromEuler(_e1.set(rc.x, rc.y || 0, 0, 'YXZ')));
     act.group.position.copy(pos).add(_v3.set(0, 0, rc.z).applyQuaternion(q));
@@ -2987,9 +3004,8 @@ const G = {
     if (!this.holoDot) {
       const cv = makeCanvas(256), x = cv.getContext('2d');
       x.shadowColor = 'rgba(255,40,30,0.9)'; x.shadowBlur = 6;
-      x.strokeStyle = 'rgba(255,50,35,0.95)'; x.lineWidth = 5; x.beginPath(); x.arc(128, 128, 110, 0, Math.PI * 2); x.stroke();
-      x.fillStyle = 'rgba(255,70,50,1)'; x.beginPath(); x.arc(128, 128, 5, 0, Math.PI * 2); x.fill();
-      x.fillRect(125, 6, 6, 18); x.fillRect(125, 232, 6, 18); x.fillRect(6, 125, 18, 6); x.fillRect(232, 125, 18, 6);
+      x.strokeStyle = 'rgba(255,50,35,0.95)'; x.lineWidth = 3; x.beginPath(); x.arc(128, 128, 110, 0, Math.PI * 2); x.stroke();
+      x.fillStyle = 'rgba(255,90,70,1)'; x.beginPath(); x.arc(128, 128, 1.7, 0, Math.PI * 2); x.fill(); // ponto de 1 MOA
       const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
       this.holoDot = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending, fog: false, toneMapped: false,
         stencilWrite: true, stencilRef: 1, stencilFunc: THREE.EqualStencilFunc, stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp, stencilZPass: THREE.KeepStencilOp, stencilWriteMask: 0 }));
@@ -2998,8 +3014,8 @@ const G = {
     const dot = this.holoDot;
     if (W.kind !== 'rifle' || this.menuOpen) { dot.visible = false; return; }
     const D = CFG.ZERO, S = W.A.sight, eye = W.group.worldToLocal(_v3.copy(this.headPos));
-    dot.visible = eye.z > S.z + 0.04 && Math.abs(eye.x - S.x) < 0.12 && Math.abs(eye.y - S.y) < 0.12;
-    if (dot.visible) { dot.position.copy(W.group.localToWorld(_v4.set(S.x, S.y, S.z - D))); dot.scale.setScalar(D * 0.0189 * 1.12); }
+    dot.visible = eye.z > S.z; // sem checagem de alinhamento: o stencil da janela recorta o retículo (visível em qualquer ponto do vidro, com leve paralaxe)
+    if (dot.visible) { dot.position.copy(W.group.localToWorld(_v4.set(S.x, S.y, S.z - D))); dot.scale.setScalar(D * (68 / 3437.75) * 256 / 220); } // anel de 68 MOA
   },
   handleTrigger(held, edge) {
     if (!held) { this.triggerLock = false; return; }
@@ -3178,9 +3194,9 @@ const HPOSE = {
   fist:   { t: [0.55, 0.55, 0.6], i: [1.45, 1.55, 0.9], m: [1.5, 1.6, 0.95], r: [1.5, 1.6, 0.95], p: [1.5, 1.6, 0.95], ts: 0.4 },
   grip:   { t: [0.95, 0.6, 0.4], i: [-0.38, 0.1, 0.05], m: [1.05, 1.35, 0.8], r: [1.1, 1.35, 0.8], p: [1.15, 1.35, 0.8], ts: 1.0 },
   trig:   { i: [0.62, 0.95, 0.45] },
-  hg:     { t: [0.7, 0.45, 0.35], i: [1.25, 1.3, 0.75], m: [1.35, 1.4, 0.8], r: [1.4, 1.4, 0.8], p: [1.45, 1.4, 0.8], ts: 0.7 },
-  mag:    { t: [0.55, 0.35, 0.25], i: [1.05, 1.2, 0.7], m: [1.15, 1.25, 0.75], r: [1.2, 1.3, 0.75], p: [1.25, 1.3, 0.75], ts: 0.5 },
-  pinch:  { t: [0.55, 0.45, 0.4], i: [0.85, 1.0, 0.55], m: [1.35, 1.5, 0.9], r: [1.4, 1.55, 0.9], p: [1.45, 1.55, 0.9], ts: 0.55 },
+  hg:     { t: [0.95, 0.25, 0.15], i: [1.25, 1.3, 0.75], m: [1.35, 1.4, 0.8], r: [1.4, 1.4, 0.8], p: [1.45, 1.4, 0.8], ts: 1.05 }, // polegar por cima do guarda-mão
+  mag:    { t: [0.7, 0.4, 0.3], i: [0.25, 0.2, 0.1], m: [1.1, 1.2, 0.7], r: [1.2, 1.3, 0.7], p: [1.3, 1.3, 0.7], ts: 0.75 }, // indicador estendido ao longo do carregador
+  pinch:  { t: [0.5, 0.4, 0.3], i: [1.1, 1.3, 0.9], m: [1.2, 1.4, 0.9], r: [1.5, 1.6, 1.0], p: [1.5, 1.6, 1.0], ts: 0.4 },
   point:  { t: [0.55, 0.5, 0.55], i: [0.08, 0.05, 0.03], m: [1.45, 1.55, 0.9], r: [1.45, 1.55, 0.9], p: [1.45, 1.55, 0.9], ts: 0.4 },
   grenade:{ t: [0.45, 0.3, 0.25], i: [0.85, 0.95, 0.6], m: [0.9, 1.0, 0.6], r: [0.95, 1.0, 0.6], p: [1.0, 1.0, 0.6], ts: 0.35 }
 };
@@ -3292,15 +3308,17 @@ Object.assign(G, {
         const cols = ['#6b6247', '#a39270', '#5a4e38', '#7d7a5a'];
         for (let i = 0; i < 60; i++) { x.fillStyle = cols[i % 4]; x.beginPath(); x.ellipse(rnd() * 128, rnd() * 128, 6 + rnd() * 14, 4 + rnd() * 8, rnd() * 3, 0, Math.PI * 2); x.fill(); }
         this.sleeveMat = new THREE.MeshStandardMaterial({ map: toTex(cv, true, 2, 2), roughness: 0.95, metalness: 0, envMapIntensity: 0.5 });
-        this.cuffMat = new THREE.MeshStandardMaterial({ color: 0x4e4232, roughness: 0.85, envMapIntensity: 0.5 });
+        this.cuffMat = new THREE.MeshStandardMaterial({ color: 0x5e4e3a, roughness: 0.85, envMapIntensity: 0.5 });
       }
-      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.031, 0.05, 14, 1, true), this.cuffMat);
+      const lathe = (pts) => new THREE.LatheGeometry(pts.map(p => new THREE.Vector2(p[0], p[1])), 18);
+      const cuff = new THREE.Mesh(lathe([[0.029, -0.025], [0.032, -0.018], [0.0335, 0.0], [0.033, 0.02], [0.031, 0.025]]), this.cuffMat);
       cuff.geometry.translate(0, 0.012, 0); cuff.quaternion.copy(qArm); cuff.position.copy(armDir).multiplyScalar(0.005);
-      const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.037, 0.044, 0.22, 14, 1, true), this.sleeveMat);
+      // manga do uniforme: punho dobrado, antebraço que engrossa e ponta fechada (sem aspecto de cone/tubo)
+      const sleeve = new THREE.Mesh(lathe([[0.034, -0.045], [0.039, -0.04], [0.04, -0.03], [0.037, -0.024], [0.041, -0.01], [0.044, 0.02], [0.045, 0.04], [0.03, 0.046], [0.0, 0.047]]), this.sleeveMat); // ~9 cm: não cobre a mão na visada
       sleeve.geometry.translate(0, 0.155, 0); sleeve.quaternion.copy(qArm);
       h.root.updateMatrixWorld(true); const ws = new THREE.Vector3(); wb.getWorldScale(ws); const inv = 1.06 / Math.max(1e-4, ws.x);
       [cuff, sleeve].forEach(m => { m.castShadow = true; m.material.side = THREE.DoubleSide; m.scale.setScalar(inv); m.position.multiplyScalar(inv); wb.add(m); });
-      h.sleeve = sleeve; h.wb = wb; sleeve.geometry.translate(0, -0.155, 0); sleeve.geometry.translate(0, 0.14, 0);
+      h.sleeve = sleeve; h.wb = wb; sleeve.geometry.translate(0, -0.155, 0); sleeve.geometry.translate(0, 0.07, 0);
     }
     h.root.visible = false; h.sp = new THREE.Vector3(); h.sq = new THREE.Quaternion(); h.inited = false;
     this.scene.add(h.root); this.hands[side] = h;
@@ -3438,13 +3456,13 @@ Object.assign(G, {
     if (vr && this.started && !this.menuOpen && this.P && this.P.alive) {
       // Y (mão de apoio): toque = agachar; segurar Y + analógico lateral = inclinar; clique no analógico = deitar
       const yHeld = sh.b && this.P.supHeld !== 'grenade';
-      if (yHeld && !this.yWasHeld) { this.yDownT = this.time; this.yLeaned = false; }
-      if (yHeld && Math.abs(sh.sx) > 0.3) this.yLeaned = true;
-      if (!yHeld && this.yWasHeld && !this.yLeaned && this.time - this.yDownT < 0.45) this.setPosture(this.posture === 1 ? 0 : 1);
-      this.yWasHeld = yHeld; this.leanHold = yHeld;
+      // toque em Y alterna agachado na borda de descida (sem depender da duração); Y segurado + analógico forte = inclinar
+      if (yHeld && !this.yWasHeld) this.setPosture(this.posture === 1 ? 0 : 1);
+      const leaning = yHeld && Math.abs(sh.sx) > 0.65;
+      this.yWasHeld = yHeld; this.leanHold = leaning;
       if (sh.stick && !this.supStickP) this.setPosture(this.posture === 2 ? 1 : 2);
       this.supStickP = sh.stick;
-      this.leanTarget = yHeld ? clamp(sh.sx, -1, 1) * 0.3 : 0;
+      this.leanTarget = leaning ? clamp(sh.sx, -1, 1) * 0.3 : 0;
     } else if (!vr) {
       const K = this.input.keys; this.leanTarget = (K.e ? 0.3 : 0) - (K.q ? 0.3 : 0); this.leanHold = false;
     }
@@ -3648,10 +3666,10 @@ Object.assign(G, {
     const py = -0.44, pz = -0.183;
     for (let i = 0; i < 3; i++) { // bolsa de tecido coyote: frente mais baixa, laterais, fundo, MOLLE e elástico com puxador
       const x = -0.08 + i * 0.08;
-      B(0.072, 0.105, 0.006, x, py - 0.0075, pz - 0.0225, 0, COY); B(0.072, 0.12, 0.006, x, py, pz + 0.0225, 0, COY);
-      B(0.006, 0.112, 0.045, x - 0.036, py - 0.004, pz, 0, COY); B(0.006, 0.112, 0.045, x + 0.036, py - 0.004, pz, 0, COY);
-      B(0.072, 0.008, 0.045, x, py - 0.058, pz, 0, COY);
-      B(0.074, 0.009, 0.003, x, py - 0.02, pz - 0.0265, 0, DK); B(0.074, 0.009, 0.003, x, py - 0.045, pz - 0.0265, 0, DK);
+      B(0.072, 0.155, 0.006, x, py - 0.0325, pz - 0.0225, 0, COY); B(0.072, 0.17, 0.006, x, py - 0.025, pz + 0.0225, 0, COY);
+      B(0.006, 0.162, 0.045, x - 0.036, py - 0.029, pz, 0, COY); B(0.006, 0.162, 0.045, x + 0.036, py - 0.029, pz, 0, COY);
+      B(0.072, 0.008, 0.045, x, py - 0.108, pz, 0, COY);
+      B(0.074, 0.009, 0.003, x, py - 0.04, pz - 0.0265, 0, DK); B(0.074, 0.009, 0.003, x, py - 0.075, pz - 0.0265, 0, DK);
       B(0.004, 0.004, 0.05, x, py + 0.066, pz, 0, 0x2b2a26); B(0.022, 0.016, 0.005, x, py + 0.052, pz - 0.027, 0, DK);
     }
     B(0.17, 0.08, 0.025, 0, -0.565, -0.165, 0, COY); B(0.012, 0.06, 0.012, 0.07, -0.56, -0.18, 0, 0x5a8a48); // painel admin + bastão químico
@@ -3667,7 +3685,13 @@ Object.assign(G, {
     this.pouchHL = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.11, 0.06), new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0, depthWrite: false, fog: false, toneMapped: false, wireframe: true }));
     this.pouchHL.position.set(0, py, pz); this.pouchHL.visible = false; inner.add(this.pouchHL);
     this.pouchMags = [];
-    for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(MAGT.rifle.geo, MAGT.rifle.mat); m.position.set(-0.08 + i * 0.08, py + 0.064, pz); m.scale.set(0.85, 0.72, 0.85); inner.add(m); this.pouchMags.push(m); }
+    const mlen = MAGT.rifle.len || 0.2, msy = 1;
+    for (let i = 0; i < 3; i++) { // carregadores guardados com a base para cima (como na vida real), base + alça de puxar visíveis
+      const m = new THREE.Mesh(MAGT.rifle.geo, MAGT.rifle.mat); m.rotation.z = Math.PI;
+      m.position.set(-0.08 + i * 0.08, py + 0.085 - mlen, pz); // base 2,5 cm acima da bolsa, escala 1:1 inner.add(m);
+      const tab = new THREE.Mesh(this.pullTabGeo || (this.pullTabGeo = mergeGeos([tint(Bx(0.024, 0.004, 0.05), 0x2a2a26), tint(xf(Bx(0.012, 0.012, 0.004), 0, 0.007, -0.027), 0x2a2a26)])), MAT.vcol);
+      tab.position.set(-0.08 + i * 0.08, py + 0.087, pz); inner.add(tab); m.userData.tab = tab;
+      this.pouchMags.push(m); }
     this.vestGrenade = new THREE.Mesh(grenadeGeo(), MAT.vcol); this.vestGrenade.position.copy(SLOTS.grenade); inner.add(this.vestGrenade);
     this.vestSyringe = new THREE.Mesh(syringeGeo(), MAT.vcol); this.vestSyringe.position.copy(SLOTS.syringe); this.vestSyringe.rotation.x = Math.PI / 2; inner.add(this.vestSyringe);
     this.scene.add(v);
@@ -3793,7 +3817,7 @@ Object.assign(G, {
     const hm = P.handMag, mm = this.magCheckMesh;
     if (mm) {
       let show = false;
-      if (vr && hm && hm.m && P.supHeld === 'mag') {
+      if (vr && this.S.showAmmo && hm && hm.m && P.supHeld === 'mag') { // rótulo só no modo fácil; no realista a checagem é visual (cartucho/transportador)
         const mp = hm.m.getWorldPosition(_xA), d = mp.distanceTo(this.headPos);
         if (d < 0.38 && _xB.subVectors(mp, this.headPos).normalize().dot(this.headFwd) > 0.7) {
           show = true; const cap = hm.kind === 'rifle' ? CFG.RIFLE_MAG : CFG.PISTOL_MAG, f = hm.rounds / cap;
@@ -3816,7 +3840,7 @@ Object.assign(G, {
     this.buildComfort(); this.buildOperation();
     this.trimShadows(); this.renderer.setPixelRatio(1);
     // checagem do carregador: aproxime o pente do rosto para estimar a munição (sem HUD)
-    const mc = makeCanvas(256); mc.height = 64; this.magCheck = { cv: mc, ctx: mc.getContext('2d'), tex: new THREE.CanvasTexture(mc), last: '' }; this.magCheck.tex.colorSpace = THREE.SRGBColorSpace;
+    const mc = makeCanvas(256); mc.height = 64; this.magCheck = { cv: mc, ctx: mc.getContext('2d'), tex: new THREE.CanvasTexture(mc), last: '' }; this.magCheck.tex.colorSpace = THREE.SRGBColorSpace; this.magCheck.tex.generateMipmaps = false; this.magCheck.tex.minFilter = THREE.LinearFilter;
     this.magCheckMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.0225), new THREE.MeshBasicMaterial({ map: this.magCheck.tex, transparent: true, depthWrite: false, fog: false, toneMapped: false }));
     this.magCheckMesh.visible = false; this.magCheckMesh.renderOrder = 996; this.scene.add(this.magCheckMesh);
     const K = this.input.keys;
@@ -3838,13 +3862,14 @@ Object.assign(G, {
     _swap.call(this);
     const toW = this.activeW();
     this.drawFromP = toW.group.position.clone(); this.drawFromQ = toW.group.quaternion.clone(); this.drawT = 0; this.drawing = true;
-    this.drawDur = this.mode === 'vr' ? 0.25 : (this.P.weapon === 'pistol' ? 0.45 : 0.8);
+    this.drawDur = this.P.weapon === 'pistol' ? 0.45 : 0.8;
+    if (this.mode === 'vr') this.drawing = false; // VR: a arma vai direto para a mão que a agarrou (sem interpolação)
     this.holsterFromP = fp; this.holsterFromQ = fq; this.holsterT = 0; this.holsterDur = fromW === this.rifle ? 0.8 : 0.45;
   };
   G.tryFire = function () {
     if (this.drawing || this.barrelBlock || this.reloadBusy || this.injecting) { this.lastShot = { type: 'blocked' }; return false; }
     const r = _fire.call(this);
-    if (this.lastShot && this.lastShot.type === 'fired') this.shotsFired++;
+    if (this.lastShot && this.lastShot.type === 'fired') { this.shotsFired++; this.lastFireT = this.time; }
     return r;
   };
   G.supZone = function () {
@@ -3918,6 +3943,74 @@ if (window.__milsimTest) Object.assign(window.__milsimTest, {
     if (!this.sample('ak', pos, 1.0, occl, dist / 343)) _enemy(pos, dist);
   };
 })();
+
+/* ======================= v4: mira alinhada ao olho, carregadores com cartucho/transportador ======================= */
+const _yA = new THREE.Vector3(), _yB = new THREE.Vector3(), _yC = new THREE.Vector3(), _yD = new THREE.Vector3(), _yE = new THREE.Vector3(), _yQ = new THREE.Quaternion(), _yM = new THREE.Matrix4();
+CFG.STOCK_EYE_X = null; // null = automático: posição real do olho dominante vinda do WebXR (IPD do headset)
+Object.assign(G, {
+  // deslocamento lateral do olho dominante em relação ao centro da cabeça
+  aimEyeX() {
+    const lh = this.S.leftHanded;
+    if (typeof CFG.STOCK_EYE_X === 'number') return CFG.STOCK_EYE_X * (lh ? -1 : 1);
+    const xr = this.renderer.xr;
+    if (xr.isPresenting) {
+      const cams = xr.getCamera().cameras;
+      if (cams && cams.length >= 2) {
+        const c = cams[lh ? 0 : 1]; c.matrixWorld && _yA.setFromMatrixPosition(c.matrixWorld);
+        _yB.set(1, 0, 0).applyQuaternion(this.headQuat);
+        const d = _yA.sub(this.headPos).dot(_yB);
+        if (Math.abs(d) > 0.005 && Math.abs(d) < 0.05) return d;
+      }
+    }
+    return 0.032 * (lh ? -1 : 1);
+  },
+  aimEye(out) { return out.set(this.aimEyeX(), 0, 0).applyQuaternion(this.headQuat).add(this.headPos); },
+  shoulderAnchor(out) {
+    _xE.setFromQuaternion(this.headQuat, 'YXZ'); _xE.z = 0; _xQ.setFromEuler(_xE);
+    return out.set(this.aimEyeX(), -0.085, 0.12).applyQuaternion(_xQ).add(this.headPos);
+  },
+  // coronha virtual: a linha de visada passa pelo olho dominante e aponta para a mão de apoio (sem fuzil "flutuando" ou apontando para cima)
+  stockPose(act, q, pos, shPos, sw) {
+    const S = act.A.sight, hg = act.A.handguard, E = this.aimEye(_yA);
+    const up = _yB.set(0, 1, 0).applyQuaternion(q);
+    const T = _yC.copy(shPos).addScaledVector(up, S.y - hg.y);           // ponto da mão de apoio levado à altura da mira
+    const upw = _yD.set(0, 1, 0).lerp(up, 0.35).normalize();
+    _yM.lookAt(E, T, upw); _yQ.setFromRotationMatrix(_yM);              // -Z da arma = do olho para o alvo
+    const R = _yE.set(S.x, S.y, S.z + 0.035);                           // janela traseira da mira
+    const relief = clamp((act.A.butt.z - R.z) - 0.11, 0.12, 0.34);      // soleira ~11 cm atrás do olho (bochecha na coronha)
+    const dir = _yD.set(0, 0, -1).applyQuaternion(_yQ);
+    const P = E.addScaledVector(dir, relief).sub(R.applyQuaternion(_yQ));
+    q.slerp(_yQ, sw); pos.lerp(P, sw);
+  },
+  // cartucho de cima (com lábios de alimentação) ou transportador visível quando vazio
+  magTopParts(kind) {
+    this.magTopGeo = this.magTopGeo || {};
+    if (!this.magTopGeo[kind]) {
+      const rifle = kind === 'rifle', cl = rifle ? 0.045 : 0.019, bl = rifle ? 0.012 : 0.009, r = rifle ? 0.0048 : 0.0049;
+      const cs = Cy(r, r, cl, 10); const bu = Cy(0.0002, r * 0.6, bl, 10);
+      const zc = rifle ? 0.008 : 0.004;
+      const round = mergeGeos([tint(xf(cs, rifle ? 0.0025 : 0, -0.0055, zc, Math.PI / 2), 0xb5913e), tint(xf(bu, rifle ? 0.0025 : 0, -0.0055, zc - cl / 2 - bl / 2, -Math.PI / 2), 0xa3612f)]);
+      const fol = tint(xf(Bx(rifle ? 0.017 : 0.014, 0.004, rifle ? 0.05 : 0.026), 0, -0.009, rifle ? 0.002 : 0.002), rifle ? 0x6d6a5c : 0x3a3a36);
+      this.magTopGeo[kind] = { round, fol };
+    }
+    return this.magTopGeo[kind];
+  },
+  decorateMag(mag) {
+    if (mag.top) return;
+    const g = this.magTopParts(mag.kind);
+    mag.top = new THREE.Mesh(g.round, MAT.vcol); mag.fol = new THREE.Mesh(g.fol, MAT.vcol);
+    mag.m.add(mag.top); mag.m.add(mag.fol); this.updateMagTop(mag);
+  },
+  updateMagTop(mag) { if (mag.top) { mag.top.visible = mag.rounds > 0; mag.fol.visible = mag.rounds <= 0; } },
+  v4Update() {
+    if (!this.mags) return;
+    for (const m of this.mags) { if (!m.top) this.decorateMag(m); else if (m.m.visible) this.updateMagTop(m); }
+  }
+});
+{
+  const _nm = G.newMag; G.newMag = function (kind, rounds) { const m = _nm.call(this, kind, rounds); this.decorateMag(m); return m; };
+  const _t4 = G.tick; G.tick = function (dt, t) { _t4.call(this, dt, t); this.v4Update(); if (window.__milsimTest && !window.__milsimTest.FX) window.__milsimTest.FX = FX; };
+}
 })();
 </script>
 </head>
@@ -3971,7 +4064,7 @@ if (window.__milsimTest) Object.assign(window.__milsimTest, {
   </div>
 
   <a-scene milsim-game
-    renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true; highRefreshRate: true; foveationLevel: 1; toneMapping: ACESFilmic; exposure: 1.0"
+    renderer="antialias: auto; stencil: true; colorManagement: true; physicallyCorrectLights: true; highRefreshRate: true; foveationLevel: 1; toneMapping: ACESFilmic; exposure: 1.0"
     shadow="type: pcf; autoUpdate: true"
     fog="type: exponential; color: #d9c49c; density: 0.02"
     background="color: #d9c49c"
