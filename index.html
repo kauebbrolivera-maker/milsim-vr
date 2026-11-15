@@ -4298,7 +4298,7 @@ const _v6w = new THREE.Vector3(), _v6h = new THREE.Vector3(), _v6f = new THREE.V
       W.selTips = tips; W.selPiv = piv;
     }
   });
-  const _t8 = G.tick; G.tick = function (dt, t) { _t8.call(this, dt, t); if (this.rifle && this.rifle.glb && !this.rifle.selDeco && this.P) this.decorateSelector(this.rifle); };
+  const _t8 = G.tick; G.tick = function (dt, t) { _t8.call(this, dt, t); if (this.rifle && this.rifle.glb && !this.rifle.selDeco && this.P) this.decorateSelector(this.rifle); if (window.__milsimTest && !window.__milsimTest.SFX) window.__milsimTest.SFX = SFX; };
 }
 })();
 </script>
