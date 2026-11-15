@@ -1,0 +1,152 @@
+{
+ "stills": [
+  {
+   "start": 13.167,
+   "end": 15.167,
+   "label": "Retículo vermelho contra o céu claro",
+   "frame": 395,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_reticle_sky.png"
+  },
+  {
+   "start": 17.867,
+   "end": 19.867,
+   "label": "Visada: punho/manga da mão de apoio ocultos",
+   "frame": 536,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_no_cuff_ads.png"
+  },
+  {
+   "start": 20.533,
+   "end": 22.533,
+   "label": "Impacto na placa: faíscas",
+   "frame": 616,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_plate_far.png"
+  },
+  {
+   "start": 26.3,
+   "end": 28.3,
+   "label": "Placa do colete: faíscas do impacto",
+   "frame": 789,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_plate_vest.png"
+  },
+  {
+   "start": 47.4,
+   "end": 49.4,
+   "label": "Pane 1: tapa na base do carregador",
+   "frame": 1422,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_jam1_slap.png"
+  },
+  {
+   "start": 51.467,
+   "end": 53.467,
+   "label": "Pane 1: alavanca puxada (rack)",
+   "frame": 1544,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_jam1_rack.png"
+  },
+  {
+   "start": 54.867,
+   "end": 56.867,
+   "label": "Pane 2: estojo de latão preso na janela (lado direito)",
+   "frame": 1646,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_jam2_brass_right.png"
+  },
+  {
+   "start": 59.6,
+   "end": 61.6,
+   "label": "Pane 2: alavanca limpou o estojo (lado direito)",
+   "frame": 1788,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_jam2_cleared.png"
+  },
+  {
+   "start": 63.067,
+   "end": 65.067,
+   "label": "Pane 3: carregador fora, poço vazio",
+   "frame": 1892,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_jam3_magwell.png"
+  },
+  {
+   "start": 67.333,
+   "end": 69.333,
+   "label": "Pane 3: 1ª manobra",
+   "frame": 2020,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_jam3_rack1.png"
+  },
+  {
+   "start": 71.267,
+   "end": 73.267,
+   "label": "Pane 3: 2ª manobra",
+   "frame": 2138,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_jam3_rack2.png"
+  },
+  {
+   "start": 78.367,
+   "end": 80.367,
+   "label": "Seletor em A (automático): gravações S/1/A e marca na alavanca",
+   "frame": 2351,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_selector_A.png"
+  },
+  {
+   "start": 81.0,
+   "end": 83.0,
+   "label": "Seletor em S (segurança): gravações S/1/A e marca na alavanca",
+   "frame": 2430,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_selector_S.png"
+  },
+  {
+   "start": 83.967,
+   "end": 85.967,
+   "label": "Seletor em 1 (semiautomático): gravações S/1/A e marca na alavanca",
+   "frame": 2519,
+   "still_png": "/workspace/ias_out/milsim_vr/v8_still_selector_1.png"
+  }
+ ],
+ "captions": [
+  {
+   "t": 0.0,
+   "label": "Coronha virtual: fuzil apoiado no ombro, mira holográfica zerada a 50 m"
+  },
+  {
+   "t": 5.9,
+   "label": "Mira holográfica: anel 68 MOA + ponto, visto pelo olho dominante"
+  },
+  {
+   "t": 8.867,
+   "label": "Retículo em close: anel de 68 MOA + ponto, mira firme no céu"
+  },
+  {
+   "t": 25.1,
+   "label": "Impacto na placa do colete: faíscas e som metálico"
+  },
+  {
+   "t": 28.7,
+   "label": "Recarga completa: ferrolho travado aberto → soltar pente → bolsa → inserir → alavanca"
+  },
+  {
+   "t": 45.633,
+   "label": "Pane! Tap-rack: bata no pente e puxe a alavanca"
+  },
+  {
+   "t": 73.533,
+   "label": "Seletor de tiro: o dedo empurra a alavanca S → 1 → A"
+  },
+  {
+   "t": 90.633,
+   "label": "Soltando o guarda-mão: a mão volta ao controle sem deformar"
+  },
+  {
+   "t": 91.9,
+   "label": "Pistola Glock: grip no coldre do quadril para sacar"
+  },
+  {
+   "t": 98.433,
+   "label": "Granada M67: pegar no ombro, puxar o pino (Y), arremessar"
+  },
+  {
+   "t": 106.233,
+   "label": "Vilarejo de adobe: casas entráveis, portas e janelas"
+  }
+ ],
+ "frames": 3576,
+ "dur": 119.2,
+ "video": "milsim_v8_demo.mp4",
+ "note": "start/end em segundos no arquivo final (30 fps); cada close é um quadro parado de 2 s, recortado e ampliado em pós (rotulado no vídeo)"
+}
