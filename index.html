@@ -4095,9 +4095,11 @@ Object.assign(G, {
       if (!vr || this.P.weapon !== 'rifle' || !this.P || this.P.supHeld) { this.selTouch = null; return; }
       const sh = this.supHand(), W = this.rifle; if (!sh.valid || !W.A.selector) { this.selTouch = null; return; }
       W.group.localToWorld(_sP.copy(W.A.selector));
-      if (sh.pos.distanceTo(_sP) > 0.045) { this.selTouch = null; return; }
+      if (sh.pos.distanceTo(_sP) > 0.045 || sh.grip || sh.gripP) { this.selTouch = null; return; } // com grip, a mão agarra/gira o seletor (outro caminho)
       W.group.worldToLocal(_sL.copy(sh.pos));
-      if (!this.selTouch) { this.selTouch = { y0: _sL.y }; return; }
+      if (!this.selTouch) { this.selTouch = { y0: _sL.y, t: 0 }; return; }
+      this.selTouch.t += Math.min(this.lastDt || 0.016, 0.05);
+      if (this.selTouch.t < 0.25) { this.selTouch.y0 = _sL.y; return; } // dedo repousa no seletor antes de empurrar (ignora a aproximação)
       const dy = _sL.y - this.selTouch.y0, order = ['safe', 'semi', 'auto'], ws = this.P.ws.rifle, i = order.indexOf(ws.mode);
       if (dy < -0.015 && i < 2) { this.setSelector('rifle', order[i + 1]); this.selTouch.y0 = _sL.y; }   // dedo empurra a alavanca para baixo → disparo
       else if (dy > 0.015 && i > 0) { this.setSelector('rifle', order[i - 1]); this.selTouch.y0 = _sL.y; } // para cima → segurança
