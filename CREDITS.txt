@@ -1,28 +1,43 @@
-OPERAÇÃO DUNA — MilSim VR (WebXR / A-Frame 1.5.0)
-==================================================
+OPERAÇÃO DUNA — MilSim VR (WebXR / A-Frame 1.5.0) — v3
+=======================================================
 
-Modelos 3D incluídos neste repositório (pasta assets/)
-------------------------------------------------------
+Arquivos incluídos neste repositório (pasta assets/)
+----------------------------------------------------
 assets/m4a1.glb
-  "M4A1 Assault Rifle" por nisu — licença CC0 1.0 (domínio público)
+  "M4A1 Assault Rifle" por nisu — CC0 1.0 (domínio público)
   https://opengameart.org/content/m4a1-assault-rifle
-  Convertido de FBX para glTF (FBX2glTF), texturas PBR reduzidas (1024/512 px)
-  e reempacotadas com gltf-transform. ~9,2 mil triângulos, ~0,5 MB.
+  FBX → glTF; texturas PBR 1024 px refeitas (metal/rugosidade ajustados, desgaste) com gltf-transform.
 
-assets/pistol.glb
-  "3D Low Poly Pistol With Bullet Shell" por AlexanderZotov — licença CC0 1.0
-  https://opengameart.org/content/3d-low-poly-pistol-with-bullet-shell
-  Convertido de FBX para glTF; materiais recoloridos em tons táticos. ~2,6 mil triângulos.
+assets/glock.glb
+  "High Poly Glock-18 (no textures)" — CC0 1.0, OpenGameArt
+  https://opengameart.org/content/high-poly-glock-18-no-textures
+  OBJ → glTF, decimado (~12 mil triângulos), corrediça separada, materiais PBR polímero + aço.
 
-Modelos carregados de fontes públicas em tempo de execução
------------------------------------------------------------
-Soldier.glb (exemplos do three.js, Mixamo) — https://threejs.org/examples/models/gltf/Soldier.glb
-TrafficCone.glb (Khronos glTF Sample Assets, CC0) — https://github.com/KhronosGroup/glTF-Sample-Assets
-Modelos dos controles Meta Quest Touch Plus — fornecidos pelo A-Frame (cdn.aframe.io)
+assets/hand_left.glb, assets/hand_right.glb
+  "generic-hand" de webxr-input-profiles (Amazon.com, Inc.) — licença MIT
+  https://github.com/immersive-web/webxr-input-profiles
+  Usadas como luvas táticas (material e poses de dedos próprios).
 
-Tudo o mais (mapa, texturas, props, efeitos, sons, IA, mecânicas) é gerado
-proceduralmente no próprio index.html. Se algum .glb não carregar, o jogo usa
-automaticamente a versão procedural equivalente.
+assets/Soldier.glb
+  Exemplos do three.js (personagem Mixamo) — https://threejs.org/examples/models/gltf/Soldier.glb
+  (agora hospedado localmente)
 
-Referências de design do sistema de recarga: Onward, Hot Dogs Horseshoes & Hand
-Grenades (H3VR), Pavlov VR, Contractors e Bonelab (apenas inspiração de mecânicas).
+assets/TrafficCone.glb
+  Khronos glTF Sample Assets — CC0 — https://github.com/KhronosGroup/glTF-Sample-Assets
+  (hospedado localmente, texturas reduzidas para 256 px)
+
+assets/snd_m4.mp3 (AR-15), assets/snd_pistol.mp3 (Walther PPQ 9 mm), assets/snd_ak.mp3 (AK-47)
+  "The Free Firearm Sound Library" — Ben Jaszczak, Brian Nelson, Kevin Heras, Matthew Nanney — CC0
+  https://opengameart.org/content/the-free-firearm-sound-library
+  Um disparo recortado de cada gravação, mono, normalizado.
+
+Carregado em tempo de execução
+------------------------------
+Modelos dos controles Meta Quest Touch Plus — fornecidos pelo A-Frame (cdn.aframe.io), só se
+a opção "Mostrar controles" estiver ligada.
+
+Tudo o mais (vilarejo de adobe, terreno, céu, texturas, colete, efeitos, balística, IA,
+mecânicas e sons de manuseio) é gerado no próprio index.html. Se algum .glb ou som não
+carregar, o jogo usa automaticamente a versão procedural/sintetizada.
+
+Referências de design: Onward, H3VR, Pavlov VR, Contractors, Bonelab (apenas inspiração).
