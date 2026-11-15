@@ -236,9 +236,10 @@ function radialTex(inner, outer, size) {
 }
 function flashTex() {
   const c = makeCanvas(64), x = c.getContext('2d');
-  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(255,250,220,1)'); g.addColorStop(0.25, 'rgba(255,200,90,0.9)'); g.addColorStop(1, 'rgba(255,120,20,0)');
-  x.fillStyle = g; x.translate(32, 32);
+  // gradiente centrado na origem JÁ transladada (antes ficava deslocado e o clarão saía quase todo transparente)
+  x.translate(32, 32); const g = x.createRadialGradient(0, 0, 0, 0, 0, 32);
+  g.addColorStop(0, 'rgba(255,250,220,1)'); g.addColorStop(0.3, 'rgba(255,205,100,0.95)'); g.addColorStop(1, 'rgba(255,120,20,0)');
+  x.fillStyle = g;
   for (let k = 0; k < 6; k++) { x.rotate(Math.PI / 3); x.beginPath(); x.moveTo(-4, 0); x.lineTo(0, -31); x.lineTo(4, 0); x.fill(); }
   x.beginPath(); x.arc(0, 0, 14, 0, 6.3); x.fill();
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
@@ -1118,11 +1119,11 @@ function wearRifleMaterial(mat) {
       .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nvec3 wGeoN = normal;')
       .replace('#include <lights_physical_fragment>', [
         'float wN = wearH(floor(vWearP * 1400.0));',
-        'float wEdge = clamp(length(fwidth(wGeoN)) * 3.5 - 0.12, 0.0, 1.0);',
+        'float wEdge = clamp(length(fwidth(wGeoN)) * 2.0 - 0.3, 0.0, 0.6);',
         'float wAmt = clamp(wEdge * (0.55 + 0.45 * wN), 0.0, 1.0);',
-        'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.46, 0.47, 0.48), wAmt * 0.5);',
+        'diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.46, 0.47, 0.48), wAmt * 0.35);',
         'metalnessFactor = mix(metalnessFactor, 1.0, wAmt * 0.8);',
-        'roughnessFactor = clamp(mix(roughnessFactor, 0.32, wAmt) * (0.9 + 0.2 * wN), 0.05, 1.0);',
+        'roughnessFactor = clamp(mix(roughnessFactor, 0.32, wAmt) * (0.96 + 0.08 * wN), 0.05, 1.0);',
         '#include <lights_physical_fragment>'].join('\n'));
   };
   mat.customProgramCacheKey = () => 'rifleWear1'; mat.needsUpdate = true;
@@ -1928,8 +1929,8 @@ const _bd = new THREE.Vector3(), _bx = new THREE.Vector3(), _bRay = new THREE.Ra
 const Ballistics = {
   list: [], shotsFired: 0, hits: 0,
   init(scene) {
-    const geo = new THREE.BoxGeometry(0.012, 0.012, 1); geo.translate(0, 0, -0.5);
-    this.tr = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffc46a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), 32);
+    const geo = new THREE.BoxGeometry(0.016, 0.016, 1); geo.translate(0, 0, 0.5); // o traço fica ATRÁS da bala (rumo à boca do cano)
+    this.tr = new THREE.InstancedMesh(geo, new THREE.MeshBasicMaterial({ color: 0xffa838, transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false, fog: false }), 32);
     this.tr.frustumCulled = false; this.tr.count = 0; scene.add(this.tr);
   },
   fire(origin, dir, cal, owner, tracer, shooter) {
@@ -1948,7 +1949,7 @@ const Ballistics = {
       b.life -= dt;
       if (!alive || b.life <= 0 || b.p.y < -0.5 || b.dist > 600) { this.list.splice(i, 1); continue; }
       if (b.tracer && ti < 32) {
-        const len = Math.min(b.dist, 3.5), dirN = _b1.copy(b.v).normalize();
+        const len = Math.min(b.dist, (2.2 - b.life) < 0.05 ? 25 : 3.5), dirN = _b1.copy(b.v).normalize(); // 1º instante: traço desde a boca do cano
         _bq.setFromUnitVectors(_b2.set(0, 0, -1), dirN); _bs.set(1, 1, len); _bm.compose(b.p, _bq, _bs); this.tr.setMatrixAt(ti++, _bm);
       }
     }
@@ -2353,7 +2354,7 @@ const G = {
     }
     else if (feed) { ws.boltLocked = true; SFX.boltLock(W.group.position); } // trava do ferrolho no último tiro
     this.ejectCasing(W, false);
-    if (W.dust && !W.dustOpen) { W.dust.rotation.z = W.dustBase + 1.35; W.dustOpen = true; }
+    if (W.dust) W.dustOpen = true; // a tampa abre animada (updateActionParts)
     // projétil sai da BOCA DO CANO; a mira é zerada a 50 m (fuzil) / 25 m (pistola), compensando a queda
     const origin = new THREE.Vector3(), dir = new THREE.Vector3(), cal = k === 'rifle' ? '556' : '9mm';
     if (this.mode === 'vr') {
@@ -4241,7 +4242,7 @@ Object.assign(G, {
     }
     W.stovepipe.visible = !!on;
     // tampa da janela aberta enquanto o estojo está preso
-    if (on && W.dust && W.dustBase !== undefined) { W.dust.rotation.z = W.dustBase + 1.35; W.dustOpen = true; }
+    if (on && W.dust) W.dustOpen = true;
   }
 
 });
@@ -4652,6 +4653,127 @@ CFG.PLAYER_DMG_K = 0.45; CFG.PLAYER_HEAD_MAX = 45; CFG.ENEMY_SPREAD_K = 1.5;
     }
   });
   const _t12 = G.tick; G.tick = function (dt, t) { _t12.call(this, dt, t); if (this.started && this.P) this.updatePhysHands(this.renderer.xr.isPresenting, Math.min(dt || 0.016, 0.05)); };
+}
+/* ===== correções do teste no Quest 3S ===== */
+/* (1) guardar o fuzil: grip OU soltar o grip na zona do ombro (fuzil vai às costas) ou do coldre; quem segura o grip o tempo todo também consegue */
+{
+  const _gz = G.gunZone, _sw = G.swapWeapon;
+  G.gunZone = function () {
+    const z = _gz.call(this); if (z) return z;
+    const gh = this.gunHand(); if (!gh.valid || this.P.weapon !== 'rifle') return null;
+    const p = this.slotWorld('back', _v1); if (gh.pos.distanceTo(p) < MAGSYS.BACK_R * 1.3) return { type: 'back', point: p.clone() };
+    return null;
+  };
+  G.swapWeapon = function () { this.lastSwapT = this.time; const gh = this.gunHand && this.gunHand(); if (gh && gh.grip) this.swapInHold = true; return _sw.apply(this, arguments); };
+  Object.assign(G, {
+    updateStowGesture() {
+      const gh = this.gunHand(), P = this.P; if (!gh.valid) { this.ghGripP = false; return; }
+      const press = gh.grip && !this.ghGripP, rel = !gh.grip && this.ghGripP; this.ghGripP = gh.grip;
+      if (press) this.swapInHold = false;
+      const z = gh.zone, cool = this.time - (this.lastSwapT || -9) > 0.6;
+      if (!z || P.supHeld === 'grenade' || !cool) { if (rel) this.swapInHold = false; return; }
+      // fuzil no ombro: grip ou soltar o grip ali guarda o fuzil nas costas (e saca a pistola)
+      if (z.type === 'back' && P.weapon === 'rifle' && (press || (rel && !this.swapInHold))) { this.swapWeapon(); this.msg('Fuzil guardado nas costas', 1.2); }
+      else if (z.type === 'holster' && rel && !this.swapInHold) this.swapWeapon();
+      if (rel) this.swapInHold = false;
+    }
+  });
+}
+/* (3) clarão visível de dia (mistura normal, núcleo quente) e traçante saindo da boca do cano no primeiro instante */
+{ const _stF = G.setup; G.setup = function () { const r = _stF.apply(this, arguments); if (MAT.flash) { MAT.flash.blending = THREE.NormalBlending; MAT.flash.alphaTest = 0.02; MAT.flash.color.setRGB(1, 0.95, 0.85); MAT.flash.needsUpdate = true; } return r; }; }
+/* (4) tampa da janela de ejeção: fechada de verdade (cobre o ferrolho) e abre no 1º tiro ou ao puxar a alavanca; transportador do ferrolho recua no tiro e na manobra */
+{
+  const _swDust = () => { const W = G.rifle; if (!W || !W.dust) return; W.dustClosedRot = 1.57; W.dustOpenRot = -1.52; if (W.dustRot === undefined) { W.dustRot = W.dustClosedRot; W.dust.rotation.z = W.dustRot; } };
+  Object.assign(G, {
+    updateActionParts(dt) {
+      const W = this.rifle; if (!W || !W.glb) return; _swDust();
+      if (!W.carrier) { const c = W.glb.getObjectByName('Ejector_2'); if (c) { W.carrier = c; W.carrierBase = c.position.clone(); W.carrierDir = gunZInParent(W, c); } }
+      const ws = this.P.ws.rifle;
+      // tiro: ciclo de ~70 ms do transportador
+      if (this.shotN !== this._shotSeen) { if (this.P.weapon === 'rifle' && this._shotSeen !== undefined) ws.cycT = 0.07; this._shotSeen = this.shotN; }
+      ws.cycT = Math.max(0, (ws.cycT || 0) - dt);
+      const cyc = ws.cycT > 0 ? Math.sin(Math.PI * (1 - ws.cycT / 0.07)) : 0;
+      const bv = Math.max(ws.grabbed ? ws.bolt : 0, ws.boltLocked ? 1 : 0, cyc);
+      if (W.carrier) W.carrier.position.copy(W.carrierBase).addScaledVector(W.carrierDir, bv * 0.034);
+      if ((bv > 0.08 || ws.stovepipe) && !W.dustOpen) W.dustOpen = true;
+      const tgt = W.dustOpen ? W.dustOpenRot : W.dustClosedRot;
+      W.dustRot += (tgt - W.dustRot) * (1 - Math.exp(-(W.dustOpen ? 40 : 12) * dt)); W.dust.rotation.z = W.dustRot;
+      W.carrierV = bv;
+    }
+  });
+  // os pontos que abriam a tampa com dustBase + 1,35 agora só marcam "aberta"; a rotação é animada acima
+}
+/* (5) mag strip mais tolerante (Quest real) e (6) mãos/arma sem atraso ao andar: cabeça da pose do visor no quadro atual, velocidade das mãos relativa ao rig, manga sem estalo */
+{
+  const _uh = G.updateHead, _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3();
+  G.updateHead = function () {
+    const xr = this.renderer.xr;
+    if (xr.isPresenting) {
+      const fr = xr.getFrame(), ref = xr.getReferenceSpace(), vp = fr && ref ? fr.getViewerPose(ref) : null;
+      if (vp) {
+        this.rig.updateMatrixWorld(true); _m.fromArray(vp.transform.matrix).premultiply(this.rig.matrixWorld); _m.decompose(this.headPos, this.headQuat, _s);
+        this.headFwd.set(0, 0, -1).applyQuaternion(this.headQuat); _e1.setFromQuaternion(this.headQuat, 'YXZ'); this.headYaw = _e1.y; return;
+      }
+    }
+    return _uh.call(this);
+  };
+  const _rx = G.readXRPoses;
+  G.readXRPoses = function (dt) {
+    // velocidade das mãos: movimento relativo ao rig (giro/andar não viram "chacoalhada") + velocidade linear do rig
+    const rp = this.rig.position, prevRig = this._rigP || (this._rigP = rp.clone()), rq = this.rig.quaternion;
+    const L = this.input.L, R = this.input.R;
+    if (this._rigQ) { // reexpressa as posições anteriores no rig atual
+      _q.copy(this._rigQ).invert().premultiply(rq);
+      for (const h of [L, R]) h.prevPos.sub(prevRig).applyQuaternion(_q).add(rp);
+    }
+    const r = _rx.call(this, dt);
+    if (dt > 0) { this.rigLinVel = (this.rigLinVel || new THREE.Vector3()).subVectors(rp, prevRig).divideScalar(dt); }
+    this._rigP.copy(rp); this._rigQ = (this._rigQ || new THREE.Quaternion()).copy(rq);
+    return r;
+  };
+  const _os = G.orientSleeve;
+  G.orientSleeve = function (H, side) {
+    const prev = H.sleeve ? _q.copy(H.sleeve.quaternion) : null;
+    _os.call(this, H, side);
+    if (prev && H.sleeveInit) { const k = 1 - Math.exp(-22 * (this._dtLast || 0.016)); H.sleeve.quaternion.copy(prev.slerp(H.sleeve.quaternion, k)); }
+    H.sleeveInit = true;
+  };
+  // mag strip: velocidade da boca do pente novo medida no referencial da ARMA, zona maior e limiar menor;
+  // também dispara se o pente novo encostar na base do antigo subindo devagar
+  const _rQ9 = new THREE.Quaternion(), _tL = new THREE.Vector3(), _bL = new THREE.Vector3(), _aL = new THREE.Vector3(), _vL = new THREE.Vector3(), _mB2 = new THREE.Vector3(), _mA2 = new THREE.Vector3(), _mV2 = new THREE.Vector3();
+  G.updateMagStrip = function (vr, dt) {
+    const P = this.P; this.stripCd = Math.max(0, (this.stripCd || 0) - dt);
+    const hm = P && P.handMag; if (!vr || !hm || hm.state !== 'hand' || dt <= 0) { this.stripPrevL = null; return; }
+    const k = P.weapon, ws = P.ws[k], sm = ws && ws.mag, W = k === 'rifle' ? this.rifle : this.pistol;
+    W.group.updateWorldMatrix(true, false);
+    W.group.worldToLocal(hm.m.getWorldPosition(_tL));
+    if (this.stripPrevL) _vL.subVectors(_tL, this.stripPrevL).divideScalar(dt); else _vL.set(0, 0, 0);
+    this.stripPrevL = (this.stripPrevL || new THREE.Vector3()).copy(_tL);
+    if (!sm || !sm.seated || this.stripCd > 0) return;
+    W.group.worldToLocal(this.magBottomWorld(sm, _bL)); this.magAxisL(W, _aL);
+    const up = _vL.dot(_aL), rel = _mV2.subVectors(_tL, _bL), along = rel.dot(_aL), lat = rel.addScaledVector(_aL, -along).length();
+    this.stripDbg = { along: +along.toFixed(3), lat: +lat.toFixed(3), v: +up.toFixed(2) };
+    // zona: até 6 cm abaixo/1,5 cm acima da base e 5 cm de lado
+    const inZone = along > -0.06 && along < 0.015 && lat < 0.05;
+    if (inZone && (up > 0.4 || (up > 0.12 && along > -0.012))) {
+      const q = W.group.getWorldQuaternion(_rQ9);
+      this.magBottomWorld(sm, _mB2); this.dropGunMag(k);
+      _mA2.copy(_aL).applyQuaternion(q); _mV2.copy(_vL).applyQuaternion(q);
+      sm.vel.addScaledVector(_mV2, 0.5).addScaledVector(_mA2, -0.8);
+      SFX.tink(_mB2, true); SFX.impactHard(_mB2); this.haptic('sup', 0.9, 45); this.haptic('gun', 0.7, 40);
+      this.stripCd = 0.6; this.stripCount = (this.stripCount || 0) + 1; this.msg('Pente arrancado com o pente novo', 1);
+    }
+  };
+  // mãos físicas: acompanham o deslocamento/giro do rig no mesmo quadro (sem atraso nem fantasma ao andar/girar)
+  const _uph = G.updatePhysHands, _rM = new THREE.Matrix4(), _dM = new THREE.Matrix4();
+  G.updatePhysHands = function (vr, dt) {
+    this.rig.updateMatrixWorld(true);
+    if (this._rigMprev && this.hands) { _dM.copy(this._rigMprev).invert().premultiply(this.rig.matrixWorld); for (const s of ['L', 'R']) { const H = this.hands[s]; if (H && H.pp) { H.pp.applyMatrix4(_dM); if (H.ppPrev) H.ppPrev.applyMatrix4(_dM); } } }
+    (this._rigMprev || (this._rigMprev = new THREE.Matrix4())).copy(this.rig.matrixWorld);
+    return _uph.call(this, vr, dt);
+  };
+  const _t13 = G.tick;
+  G.tick = function (dt, t) { this._dtLast = Math.min(dt || 0.016, 0.05); _t13.call(this, dt, t); if (this.started && this.P) { this.updateActionParts(this._dtLast); if (this.renderer.xr.isPresenting) this.updateStowGesture(); } };
 }
 })();
 </script>
