@@ -2217,7 +2217,7 @@ const G = {
     ws.chambered = false;
     const feed = ws.mag && ws.mag.seated;
     if (feed && ws.mag.rounds > 0) {
-      if (this.S.malfunctions && !this.noMalf && Math.random() < CFG.JAM_P) { ws.jam = true; this.lastJam = true; this.msg('Falha de alimentação! Tap-rack: bata no pente e puxe a alavanca', 2.5); }
+      if (this.S.malfunctions && !this.noMalf && Math.random() < CFG.JAM_P) { ws.jam = true; this.lastJam = true; if (this.startJam) this.startJam(ws, k); else this.msg('Falha de alimentação! Tap-rack: bata no pente e puxe a alavanca', 2.5); }
       else { ws.mag.rounds--; ws.chambered = true; }
     }
     else if (feed) { ws.boltLocked = true; SFX.boltLock(W.group.position); } // trava do ferrolho no último tiro
@@ -4043,6 +4043,39 @@ Object.assign(G, {
       };
     }
     this.holoRet.visible = W.kind === 'rifle' && !this.menuOpen && W.group.visible;
+  };
+}
+/* ---------- tipos de pane: 1 falha de alimentação (tap-rack), 2 chaminé/stovepipe (manobrar), 3 dupla alimentação (travar, tirar o carregador, manobrar 2×) ---------- */
+Object.assign(G, {
+  startJam(ws, k) {
+    const r = Math.random();
+    ws.jamType = (CFG.JAM_P >= 0.5 || k !== 'rifle') ? 'feed' : r < 0.65 ? 'feed' : r < 0.9 ? 'stovepipe' : 'double'; ws.clearRacks = 0;
+    this.msg({ feed: 'Pane tipo 1 (falha de alimentação): tap-rack — bata no carregador e puxe a alavanca',
+      stovepipe: 'Pane tipo 2 (chaminé): estojo preso na janela — puxe a alavanca para limpar',
+      double: 'Pane tipo 3 (dupla alimentação): remova o carregador, puxe a alavanca 2×, recoloque e alimente' }[ws.jamType], 3);
+    this.showStovepipe(k, ws.jamType === 'stovepipe');
+  },
+  showStovepipe(k, on) {
+    const W = k === 'rifle' ? this.rifle : this.pistol;
+    if (!W.stovepipe) { W.stovepipe = new THREE.Mesh(FX.casingGeo ? FX.casingGeo.rifle : Cy(0.0048, 0.0048, 0.045, 8), FX.casingMat || new THREE.MeshStandardMaterial({ color: 0xb5913e, metalness: 0.8, roughness: 0.35 }));
+      W.stovepipe.position.copy(W.A.eject).add(new THREE.Vector3(0.012, 0.012, 0)); W.stovepipe.rotation.set(0, 0, 0.3); W.group.add(W.stovepipe); }
+    W.stovepipe.visible = !!on;
+  }
+});
+{
+  const _bf = G.boltForward;
+  G.boltForward = function (kind) {
+    const k = kind || this.P.weapon, ws = this.P.ws[k];
+    if (ws.jam && ws.jamType === 'double') {
+      if (ws.mag && ws.mag.seated) { this.msg('Dupla alimentação: não sai com o carregador inserido — remova-o primeiro', 1.8); ws.boltLocked = false; SFX.boltFwd((k === 'rifle' ? this.rifle : this.pistol).group.position); return false; }
+      ws.clearRacks = (ws.clearRacks || 0) + 1; this.ejectCasing(k === 'rifle' ? this.rifle : this.pistol, true);
+      if (ws.clearRacks < 2) { this.msg('Cartucho extraído — manobre de novo', 1.2); SFX.boltFwd((k === 'rifle' ? this.rifle : this.pistol).group.position); return false; }
+      ws.chambered = false;
+    }
+    if (ws.jam && ws.jamType === 'stovepipe') this.ejectCasing(k === 'rifle' ? this.rifle : this.pistol, false);
+    const wasJam = ws.jam, r = _bf.call(this, kind);
+    if (wasJam) { this.showStovepipe(k, false); ws.jamType = null; }
+    return r;
   };
 }
 })();
